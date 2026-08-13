@@ -10,6 +10,7 @@ public class Reservation implements Comparable<Reservation> {
     public enum ReservationStatus { PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED }
 
     private String reservationId;
+    private String confirmationNo;   // 8-digit confirmation number (e.g. "00000001")
     private String guestId;
     private String roomNo;
     private LocalDate checkInDate;
@@ -28,19 +29,22 @@ public class Reservation implements Comparable<Reservation> {
         this.numGuests     = numGuests;
         this.totalAmount   = totalAmount;
         this.status        = ReservationStatus.PENDING;
+        this.confirmationNo = "";   // set via setConfirmationNo() after construction
     }
 
     // ── Getters ────────────────────────────────────────────────
-    public String             getReservationId() { return reservationId; }
-    public String             getGuestId()       { return guestId; }
-    public String             getRoomNo()        { return roomNo; }
-    public LocalDate          getCheckInDate()   { return checkInDate; }
-    public LocalDate          getCheckOutDate()  { return checkOutDate; }
-    public int                getNumGuests()     { return numGuests; }
-    public ReservationStatus  getStatus()        { return status; }
-    public double             getTotalAmount()   { return totalAmount; }
+    public String             getReservationId()  { return reservationId; }
+    public String             getConfirmationNo() { return confirmationNo; }
+    public String             getGuestId()        { return guestId; }
+    public String             getRoomNo()         { return roomNo; }
+    public LocalDate          getCheckInDate()    { return checkInDate; }
+    public LocalDate          getCheckOutDate()   { return checkOutDate; }
+    public int                getNumGuests()      { return numGuests; }
+    public ReservationStatus  getStatus()         { return status; }
+    public double             getTotalAmount()    { return totalAmount; }
 
     // ── Setters ────────────────────────────────────────────────
+    public void setConfirmationNo(String confirmationNo)  { this.confirmationNo = confirmationNo; }
     public void setStatus(ReservationStatus status)       { this.status = status; }
     public void setRoomNo(String roomNo)                  { this.roomNo = roomNo; }
     public void setCheckInDate(LocalDate checkInDate)     { this.checkInDate = checkInDate; }

@@ -14,16 +14,40 @@ import java.util.Scanner;
 
 /**
  * Walk-In Registration Module
- * Handles: Register Guest, Reservation List, Room Availability,
- *          Choose Room Type, Search Reservation, Modify Reservation, Cancel Reservation
+ *
+ * Demonstrates the Queue ADT (FIFO) for managing walk-in guests.
+ *
+ * Queue ADT Operations used:
+ *   enqueue()  - Register Walk-In Guest (adds guest to waiting queue)
+ *   dequeue()  - Process Next Guest (removes front guest after reservation)
+ *   peek()     - View queue front / Process Next (reads front without removing)
+ *   isEmpty()  - Guards for view/process operations
+ *   traversal  - View Walk-In Queue (iterates all waiting positions)
+ *
+ * Data stores:
+ *   guestList       - shared Queue<Guest>, permanent registry, persisted to guests.csv
+ *   walkInQueue     - local Queue<Guest>, FIFO waiting queue (session-only)
+ *   reservationList - shared BST<Reservation>, persisted to reservations.csv
+ *   roomList        - shared Queue<Room>, seeded from code
+ *   walkInResIds    - local Queue<String>, tracks reservation IDs made via this module
  */
 public class WalkInRegistrationModule {
 
+    // ── Shared data stores (passed from DSA_Ass) ────────────────
     private final Queue<Guest>                 guestList;
     private final BinarySearchTree<Reservation> reservationList;
     private final Queue<Room>                  roomList;
     private final Scanner sc;
 
+    // ── Queue ADT: Walk-In Waiting Queue (FIFO) ──────────────────
+    // Separate from guestList — represents guests currently waiting to be served.
+    // Guests are enqueue()d on registration and dequeue()d once processed.
+    private final Queue<Guest>  walkInQueue;
+
+    // ── Tracks reservation IDs created in this module ────────────
+    private final Queue<String> walkInResIds;
+
+    // ── Formatting & counters ────────────────────────────────────
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static int guestCounter = 1;
     private static int resCounter   = 1;
@@ -32,634 +56,622 @@ public class WalkInRegistrationModule {
     public static void setGuestCounter(int n) { guestCounter = n; }
     public static void setResCounter(int n)   { resCounter   = n; }
 
-    public WalkInRegistrationModule(Queue<Guest> guestList,
+    public WalkInRegistrationModule(Queue<Guest>                 guestList,
                                     BinarySearchTree<Reservation> reservationList,
-                                    Queue<Room> roomList,
+                                    Queue<Room>                  roomList,
                                     Scanner sc) {
         this.guestList       = guestList;
         this.reservationList = reservationList;
         this.roomList        = roomList;
         this.sc              = sc;
+        this.walkInQueue     = new Queue<>();   // Queue ADT: walk-in waiting queue
+        this.walkInResIds    = new Queue<>();   // tracks walk-in reservation IDs
     }
 
-    // ── Sub-Menu ────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    // Sub-Menu
+    // ══════════════════════════════════════════════════════════════
     public void showMenu() {
         boolean back = false;
         while (!back) {
             ConsoleUtils.clearScreen();
             printHeader("Walk-In Registration Module");
-            System.out.println("  1. Register Guest");
-            System.out.println("  2. Manage Reservations");
-            System.out.println("  3. Room Availability");
-            System.out.println("  4. Guest Management");
-            System.out.println("  5. Generate Reports");
+            System.out.println("  [Queue ADT - FIFO Walk-In Management]");
+            System.out.println();
+            System.out.println("  1. Register Walk-In Guest");
+            System.out.println("  2. View Walk-In Queue");
+            System.out.println("  3. Process Next Walk-In Guest");
+            System.out.println("  4. Check Room Availability");
+            System.out.println("  5. View Walk-In Reservations");
             System.out.println("  0. Back to Main Menu");
             printDivider();
             System.out.print("  Enter your choice: ");
             String choice = sc.nextLine().trim();
             System.out.println();
             switch (choice) {
-                case "1": registerGuest();           autoSave(); break;
-                case "2": manageReservations();                  break;
-                case "3": displayRoomAvailability();             break; // read-only
-                case "4": guestManagement();                     break;
-                case "5": generateReports();                     break; // read-only
-                case "0": back = true;                           break;
-                default:  System.out.println("  [!] Invalid option. Please try again.");
+                case "1": registerWalkIn();       break;
+                case "2": viewWalkInQueue();      break;
+                case "3": processNextGuest();     break;
+                case "4": checkRoomAvailability(); break;
+                case "5": viewWalkInReservations(); break;
+                case "0": back = true;            break;
+                default:
+                    System.out.println("  [!] Invalid option. Please enter 0 - 5.");
+                    pressEnterToContinue();
             }
         }
     }
 
-    // ── Manage Reservations Sub-Menu ──────────────────────────────
-    private void manageReservations() {
-        boolean back = false;
-        while (!back) {
-            printHeader("Manage Reservations");
-            System.out.println("  1. View Reservation List");
-            System.out.println("  2. Search Reservation");
-            System.out.println("  0. Back");
-            printDivider();
-            System.out.print("  Enter your choice: ");
-            String choice = sc.nextLine().trim();
+    // ══════════════════════════════════════════════════════════════
+    // 1. Register Walk-In Guest
+    //    Queue ADT: enqueue() — adds guest to back of walkInQueue (FIFO)
+    // ══════════════════════════════════════════════════════════════
+    private void registerWalkIn() {
+        printHeader("Register Walk-In Guest");
+        System.out.println("  Queue Operation: enqueue() — adds guest to back of walk-in queue");
+        System.out.println("  (Enter 0 at any field to cancel)");
+        System.out.println();
+
+        // Generate unique guest ID by scanning current max
+        int maxId = 0;
+        for (int i = 0; i < guestList.size(); i++) {
+            int num = parseTrailingNum(guestList.get(i).getGuestId());
+            if (num > maxId) maxId = num;
+        }
+        int nextIdNum = Math.max(maxId + 1, guestCounter);
+        guestCounter = nextIdNum + 1;
+        String guestId = String.format("G%03d", nextIdNum);
+
+        System.out.println("  Assigned Guest ID : " + guestId);
+        System.out.println();
+
+        String name = readNonEmptyInput("  Full Name         : ");
+        if (name.equals("0")) { cancelled(); return; }
+
+        String ic = readNonEmptyInput("  IC / Passport No  : ");
+        if (ic.equals("0")) { cancelled(); return; }
+
+        String phone = readNonEmptyInput("  Phone Number      : ");
+        if (phone.equals("0")) { cancelled(); return; }
+
+        String email = readNonEmptyInput("  Email Address     : ");
+        if (email.equals("0")) { cancelled(); return; }
+
+        String nationality = readNonEmptyInput("  Nationality       : ");
+        if (nationality.equals("0")) { cancelled(); return; }
+
+        Guest g = new Guest(guestId, name, ic, phone, email, nationality);
+
+        // enqueue() into permanent guest registry (persisted to CSV)
+        guestList.enqueue(g);
+
+        // enqueue() into walk-in FIFO waiting queue
+        walkInQueue.enqueue(g);
+
+        autoSave();
+
+        // Queue position = current size (guest was just added to rear)
+        int queuePosition = walkInQueue.size();
+
+        System.out.println();
+        System.out.println("  ============================================");
+        System.out.println("       Walk-In Registration Successful");
+        System.out.println("  ============================================");
+        System.out.printf ("  Guest ID       : %s%n", guestId);
+        System.out.printf ("  Full Name      : %s%n", name);
+        System.out.printf ("  IC / Passport  : %s%n", ic);
+        System.out.printf ("  Phone Number   : %s%n", phone);
+        System.out.printf ("  Email Address  : %s%n", email);
+        System.out.printf ("  Nationality    : %s%n", nationality);
+        System.out.println("  ============================================");
+        System.out.println();
+        System.out.println("  [Queue] Guest added via enqueue() to walk-in queue.");
+        System.out.printf ("  [Queue] Current queue position : #%d%n", queuePosition);
+        System.out.printf ("  [Queue] Guests waiting         : %d%n", walkInQueue.size());
+        if (queuePosition == 1) {
+            System.out.println("  [Queue] This guest is at the FRONT and will be served next.");
+        } else {
+            System.out.printf ("  [Queue] %d guest(s) ahead in queue.%n", queuePosition - 1);
+        }
+        pressEnterToContinue();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 2. View Walk-In Queue
+    //    Queue ADT: peek() (front indicator) + traversal via get(i)
+    // ══════════════════════════════════════════════════════════════
+    private void viewWalkInQueue() {
+        printHeader("View Walk-In Queue");
+        System.out.println("  Queue Operations: peek() — identify front guest");
+        System.out.println("                    traversal — display all queue positions");
+        System.out.println();
+
+        // isEmpty() check
+        if (walkInQueue.isEmpty()) {
+            System.out.println("  [Queue] isEmpty() = true — No guests currently waiting.");
             System.out.println();
-            switch (choice) {
-                case "1": displayReservationList(); break; // read-only
-                case "2": searchReservation();      break;
-                case "0": back = true;              break;
-                default:  System.out.println("  [!] Invalid option. Please try again.");
+            System.out.println("  The walk-in queue is empty. Register a guest first (Option 1).");
+            pressEnterToContinue();
+            return;
+        }
+
+        // peek() — get front guest without removing
+        Guest frontGuest = walkInQueue.peek();
+
+        System.out.printf("  Total Guests Waiting : %d%n", walkInQueue.size());
+        System.out.printf("  Next to be Served    : %s (%s)  [peek()]%n",
+                frontGuest.getName(), frontGuest.getGuestId());
+        System.out.println();
+        System.out.printf("  %-5s %-10s %-22s %-18s%n",
+                "Queue", "Guest ID", "Full Name", "Phone");
+        printDivider();
+
+        // Queue traversal — iterate all positions from front to rear
+        for (int i = 0; i < walkInQueue.size(); i++) {
+            Guest g = walkInQueue.get(i);  // traversal via get(i)
+            String marker = (i == 0) ? "  <- NEXT" : "";
+            System.out.printf("  #%-4d %-10s %-22s %-18s%s%n",
+                    (i + 1), g.getGuestId(), g.getName(), g.getPhone(), marker);
+        }
+        printDivider();
+        System.out.println();
+        System.out.println("  Queue order: FIFO — first registered = first served.");
+        pressEnterToContinue();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 3. Process Next Walk-In Guest
+    //    Queue ADT: peek() — read front, dequeue() — remove after processing
+    // ══════════════════════════════════════════════════════════════
+    private void processNextGuest() {
+        printHeader("Process Next Walk-In Guest");
+        System.out.println("  Queue Operations: peek() — read front guest (FIFO)");
+        System.out.println("                    dequeue() — remove after reservation completed");
+        System.out.println();
+
+        // isEmpty() guard
+        if (walkInQueue.isEmpty()) {
+            System.out.println("  [Queue] isEmpty() = true — No guests in queue to process.");
+            System.out.println();
+            System.out.println("  Register a walk-in guest first (Option 1).");
+            pressEnterToContinue();
+            return;
+        }
+
+        // peek() — get front guest WITHOUT removing (dequeue happens only after processing)
+        Guest guest = walkInQueue.peek();
+
+        System.out.println("  [Queue] peek() — Guest at front of queue:");
+        System.out.println();
+        System.out.println("  ============================================");
+        System.out.println("             Guest Information");
+        System.out.println("  ============================================");
+        System.out.printf ("  Guest ID       : %s%n", guest.getGuestId());
+        System.out.printf ("  Full Name      : %s%n", guest.getName());
+        System.out.printf ("  IC / Passport  : %s%n", guest.getIcNo());
+        System.out.printf ("  Phone Number   : %s%n", guest.getPhone());
+        System.out.printf ("  Email Address  : %s%n", guest.getEmail());
+        System.out.printf ("  Nationality    : %s%n", guest.getNationality());
+        System.out.println("  ============================================");
+        System.out.println();
+
+        // Begin room selection loop (handles unavailable fallback)
+        boolean bookingComplete = processRoomSelection(guest);
+
+        // dequeue() happens here — either after successful booking OR cancelled booking
+        if (bookingComplete) {
+            // Booking was either completed successfully or cancelled — remove from queue
+            walkInQueue.dequeue();
+            System.out.println();
+            System.out.println("  [Queue] dequeue() — Guest removed from walk-in queue.");
+            System.out.printf ("  [Queue] Guests remaining in queue: %d%n", walkInQueue.size());
+        }
+        // If bookingComplete is false, guest stays in queue (they chose to retry later - not used in this flow)
+        pressEnterToContinue();
+    }
+
+    /**
+     * Handles room selection for the guest being processed.
+     * Returns true when the guest should be dequeue()d (booking done OR cancelled).
+     */
+    private boolean processRoomSelection(Guest guest) {
+        LocalDate checkIn  = null;
+        LocalDate checkOut = null;
+        Room.RoomType roomType = null;
+
+        // Initial date & room type collection
+        System.out.println("  Step 1: Select Room Type");
+        roomType = selectRoomType();
+        if (roomType == null) {
+            // Staff backed out — keep guest in queue
+            System.out.println("  Room selection cancelled. Guest remains in queue.");
+            return false;
+        }
+
+        System.out.println();
+        checkIn  = readDate("  Check-In Date  (DD/MM/YYYY): ");
+        checkOut = readDateAfter("  Check-Out Date (DD/MM/YYYY): ", checkIn);
+
+        // Availability check + retry loop
+        while (true) {
+            // Find rooms of the selected type available for the given dates
+            Queue<Room> available = findAvailableRooms(roomType, checkIn, checkOut);
+
+            if (!available.isEmpty()) {
+                // ── Success path ──────────────────────────────────────────
+                System.out.println();
+                System.out.printf("  Available %s Rooms for %s to %s:%n",
+                        roomType, checkIn.format(DATE_FMT), checkOut.format(DATE_FMT));
+                System.out.printf("  %-8s %-12s %-14s %-9s%n",
+                        "Room No", "Type", "Price/Night", "Capacity");
+                printDivider();
+                for (int i = 0; i < available.size(); i++) {
+                    Room r = available.get(i);
+                    System.out.printf("  %-8s %-12s RM%-12.2f %-9d%n",
+                            r.getRoomNo(), r.getRoomType(), r.getPricePerNight(), r.getCapacity());
+                }
+                printDivider();
+
+                System.out.print("  Enter Room Number to book: ");
+                String roomNo = sc.nextLine().trim().toUpperCase();
+                Room selectedRoom = null;
+                for (int i = 0; i < available.size(); i++) {
+                    if (available.get(i).getRoomNo().equalsIgnoreCase(roomNo)) {
+                        selectedRoom = available.get(i);
+                        break;
+                    }
+                }
+
+                if (selectedRoom == null) {
+                    System.out.println("  [!] Room not found in available list. Please try again.");
+                    pressEnterToContinue();
+                    continue;
+                }
+
+                // Number of guests
+                System.out.printf("  Number of Guests (max %d): ", selectedRoom.getCapacity());
+                int numGuests;
+                try { numGuests = Integer.parseInt(sc.nextLine().trim()); }
+                catch (NumberFormatException e) { numGuests = 1; }
+                if (numGuests < 1) numGuests = 1;
+                if (numGuests > selectedRoom.getCapacity()) {
+                    System.out.printf("  [!] Room %s holds max %d guest(s). Adjusting to %d.%n",
+                            roomNo, selectedRoom.getCapacity(), selectedRoom.getCapacity());
+                    numGuests = selectedRoom.getCapacity();
+                }
+
+                // Calculate totals
+                long nights = java.time.temporal.ChronoUnit.DAYS.between(checkIn, checkOut);
+                double total = nights * selectedRoom.getPricePerNight();
+
+                // Generate reservation ID and 8-digit confirmation number
+                int maxId = 0;
+                for (int i = 0; i < reservationList.size(); i++) {
+                    int idNum = parseTrailingNum(reservationList.get(i).getReservationId());
+                    if (idNum > maxId) maxId = idNum;
+                }
+                int nextIdNum = Math.max(maxId + 1, resCounter);
+                resCounter = nextIdNum + 1;
+                String resId  = String.format("R%03d", nextIdNum);
+                String confNo = String.format("%08d", nextIdNum);  // 8-digit confirmation number
+
+                // Reservation confirmation page
+                System.out.println();
+                System.out.println("  ============================================");
+                System.out.println("         Reservation Confirmation");
+                System.out.println("  ============================================");
+                System.out.printf ("  Confirmation No: %s  *** KEEP THIS ***%n", confNo);
+                System.out.println("  --------------------------------------------");
+                System.out.printf ("  Reservation ID : %s%n", resId);
+                System.out.printf ("  Guest ID       : %s%n", guest.getGuestId());
+                System.out.printf ("  Guest Name     : %s%n", guest.getName());
+                System.out.printf ("  Room           : %s (%s)%n", selectedRoom.getRoomNo(), selectedRoom.getRoomType());
+                System.out.printf ("  Check-In       : %s%n", checkIn.format(DATE_FMT));
+                System.out.printf ("  Check-Out      : %s%n", checkOut.format(DATE_FMT));
+                System.out.printf ("  Nights         : %d%n", nights);
+                System.out.printf ("  No. of Guests  : %d%n", numGuests);
+                System.out.printf ("  Price/Night    : RM %.2f%n", selectedRoom.getPricePerNight());
+                System.out.printf ("  Total Amount   : RM %.2f%n", total);
+                System.out.println("  ============================================");
+                System.out.println("  Present the Confirmation No. at the Front Desk");
+                System.out.println("  for Check-In, Check-Out, or Enquiries.");
+                System.out.println("  ============================================");
+                System.out.println();
+                System.out.print("  Confirm reservation? (Y/N): ");
+                String confirm = sc.nextLine().trim();
+                if (!confirm.equalsIgnoreCase("Y")) {
+                    System.out.println("  Reservation not confirmed. Guest remains in queue.");
+                    return false;
+                }
+
+                // Create and save reservation
+                Reservation res = new Reservation(resId, guest.getGuestId(),
+                        selectedRoom.getRoomNo(), checkIn, checkOut, numGuests, total);
+                res.setStatus(Reservation.ReservationStatus.CONFIRMED);
+                res.setConfirmationNo(confNo);   // attach 8-digit confirmation number
+                reservationList.add(res);
+                selectedRoom.setStatus(Room.RoomStatus.OCCUPIED);
+
+                // Track this reservation as a walk-in reservation
+                walkInResIds.enqueue(resId);
+
+                autoSave();
+
+                System.out.println();
+                System.out.println("  [✓] Reservation created successfully!");
+                System.out.printf ("  Reservation ID %s saved to reservations.csv%n", resId);
+                return true;   // trigger dequeue()
+
+            } else {
+                // ── Unavailable path ──────────────────────────────────────
+                System.out.println();
+                System.out.println("  ============================================");
+                System.out.printf ("  [!] No %s rooms available for%n", roomType);
+                System.out.printf ("      %s to %s%n",
+                        checkIn.format(DATE_FMT), checkOut.format(DATE_FMT));
+                System.out.println("  ============================================");
+                System.out.println();
+                System.out.println("  Options:");
+                System.out.println("  1. Choose Another Room Type");
+                System.out.println("  2. Change Booking Dates");
+                System.out.println("  3. Cancel Booking (remove guest from queue)");
+                printDivider();
+                System.out.print("  Enter your choice: ");
+                String fallback = sc.nextLine().trim();
+                System.out.println();
+
+                switch (fallback) {
+                    case "1":
+                        Room.RoomType newType = selectRoomType();
+                        if (newType != null) {
+                            roomType = newType;
+                        }
+                        break;
+                    case "2":
+                        checkIn  = readDate("  New Check-In Date  (DD/MM/YYYY): ");
+                        checkOut = readDateAfter("  New Check-Out Date (DD/MM/YYYY): ", checkIn);
+                        break;
+                    case "3":
+                        System.out.println("  Booking cancelled. Guest will be dequeue()d from walk-in queue.");
+                        return true;  // trigger dequeue() — guest cancelled
+                    default:
+                        System.out.println("  [!] Invalid option. Please try again.");
+                }
+                // Loop back and check availability again
             }
         }
     }
 
-    // ── Auto-save after every state-changing action ──────────────
+    /**
+     * Prompts staff to select a room type.
+     * Returns the chosen RoomType, or null if cancelled.
+     */
+    private Room.RoomType selectRoomType() {
+        System.out.println();
+        System.out.println("  Room Types:");
+        System.out.println("  1. Single   (max 1 guest)  — RM 99/night");
+        System.out.println("  2. Standard (max 2 guests) — RM 180/night");
+        System.out.println("  3. Deluxe   (max 4 guests) — RM 280/night");
+        System.out.println("  4. Suite    (max 4 guests) — RM 450/night");
+        System.out.println("  5. Villa    (max 8 guests) — RM 950/night");
+        System.out.println("  0. Cancel");
+        printDivider();
+        System.out.print("  Select room type: ");
+        String choice = sc.nextLine().trim();
+        switch (choice) {
+            case "1": return Room.RoomType.SINGLE;
+            case "2": return Room.RoomType.STANDARD;
+            case "3": return Room.RoomType.DELUXE;
+            case "4": return Room.RoomType.SUITE;
+            case "5": return Room.RoomType.VILLA;
+            default:  return null;
+        }
+    }
+
+    /**
+     * Returns a Queue<Room> of rooms matching the type and available for the date range.
+     * A room is available if:
+     *   (a) its current status is AVAILABLE (not UNDER_MAINTENANCE), AND
+     *   (b) no CONFIRMED/CHECKED_IN reservation overlaps the requested dates.
+     */
+    private Queue<Room> findAvailableRooms(Room.RoomType type, LocalDate checkIn, LocalDate checkOut) {
+        Queue<Room> result = new Queue<>();
+        for (int i = 0; i < roomList.size(); i++) {
+            Room r = roomList.get(i);
+            if (r.getRoomType() != type) continue;
+            if (r.getStatus() == Room.RoomStatus.UNDER_MAINTENANCE) continue;
+
+            // Check for date overlaps in existing reservations
+            boolean hasOverlap = false;
+            for (int j = 0; j < reservationList.size(); j++) {
+                Reservation res = reservationList.get(j);
+                if (!res.getRoomNo().equalsIgnoreCase(r.getRoomNo())) continue;
+                if (res.getStatus() != Reservation.ReservationStatus.CONFIRMED
+                        && res.getStatus() != Reservation.ReservationStatus.CHECKED_IN) continue;
+                // Overlap check: requested check-in < existing check-out AND requested check-out > existing check-in
+                if (checkIn.isBefore(res.getCheckOutDate()) && checkOut.isAfter(res.getCheckInDate())) {
+                    hasOverlap = true;
+                    break;
+                }
+            }
+            if (!hasOverlap) {
+                result.enqueue(r);
+            }
+        }
+        return result;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 4. Check Room Availability
+    //    Read-only: no queue operations — allows staff to check dates before registering
+    // ══════════════════════════════════════════════════════════════
+    private void checkRoomAvailability() {
+        printHeader("Check Room Availability");
+        System.out.println("  (Read-only: enter dates and room type to check availability)");
+        System.out.println();
+
+        LocalDate checkIn  = readDate("  Check-In Date  (DD/MM/YYYY): ");
+        LocalDate checkOut = readDateAfter("  Check-Out Date (DD/MM/YYYY): ", checkIn);
+
+        System.out.println();
+        System.out.println("  Room Type:");
+        System.out.println("  1. Single");
+        System.out.println("  2. Standard");
+        System.out.println("  3. Deluxe");
+        System.out.println("  4. Suite");
+        System.out.println("  5. Villa");
+        System.out.println("  6. All Types");
+        printDivider();
+        System.out.print("  Select room type: ");
+        String typeChoice = sc.nextLine().trim();
+        System.out.println();
+
+        Room.RoomType filterType = null;
+        switch (typeChoice) {
+            case "1": filterType = Room.RoomType.SINGLE;   break;
+            case "2": filterType = Room.RoomType.STANDARD; break;
+            case "3": filterType = Room.RoomType.DELUXE;   break;
+            case "4": filterType = Room.RoomType.SUITE;    break;
+            case "5": filterType = Room.RoomType.VILLA;    break;
+            case "6": filterType = null; break;  // all types
+            default:
+                System.out.println("  [!] Invalid selection.");
+                pressEnterToContinue();
+                return;
+        }
+
+        System.out.printf("  Room Availability — %s to %s%n",
+                checkIn.format(DATE_FMT), checkOut.format(DATE_FMT));
+        if (filterType != null) {
+            System.out.printf("  Filtering by type: %s%n", filterType);
+        }
+        System.out.println();
+        System.out.printf("  %-8s %-12s %-14s %-9s %-12s%n",
+                "Room No", "Type", "Price/Night", "Capacity", "Availability");
+        printDivider();
+
+        int countAvailable = 0;
+        int countTotal     = 0;
+
+        for (int i = 0; i < roomList.size(); i++) {
+            Room r = roomList.get(i);
+            if (filterType != null && r.getRoomType() != filterType) continue;
+            countTotal++;
+
+            if (r.getStatus() == Room.RoomStatus.UNDER_MAINTENANCE) {
+                System.out.printf("  %-8s %-12s RM%-12.2f %-9d %-12s%n",
+                        r.getRoomNo(), r.getRoomType(), r.getPricePerNight(),
+                        r.getCapacity(), "MAINTENANCE");
+                continue;
+            }
+
+            // Date-aware availability check
+            boolean hasOverlap = false;
+            for (int j = 0; j < reservationList.size(); j++) {
+                Reservation res = reservationList.get(j);
+                if (!res.getRoomNo().equalsIgnoreCase(r.getRoomNo())) continue;
+                if (res.getStatus() != Reservation.ReservationStatus.CONFIRMED
+                        && res.getStatus() != Reservation.ReservationStatus.CHECKED_IN) continue;
+                if (checkIn.isBefore(res.getCheckOutDate()) && checkOut.isAfter(res.getCheckInDate())) {
+                    hasOverlap = true;
+                    break;
+                }
+            }
+
+            String avail = hasOverlap ? "UNAVAILABLE" : "AVAILABLE";
+            if (!hasOverlap) countAvailable++;
+            System.out.printf("  %-8s %-12s RM%-12.2f %-9d %-12s%n",
+                    r.getRoomNo(), r.getRoomType(), r.getPricePerNight(),
+                    r.getCapacity(), avail);
+        }
+
+        printDivider();
+        System.out.printf("  Rooms checked: %d  |  Available: %d  |  Unavailable: %d%n",
+                countTotal, countAvailable, countTotal - countAvailable);
+        System.out.println();
+        System.out.println("  Note: This is a read-only check. Use Option 3 to process a guest.");
+        pressEnterToContinue();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 5. View Walk-In Reservations
+    //    Displays reservations created through this module only
+    // ══════════════════════════════════════════════════════════════
+    private void viewWalkInReservations() {
+        printHeader("Walk-In Reservations");
+        System.out.println("  Reservations created through the Walk-In Registration Module:");
+        System.out.println();
+
+        if (walkInResIds.isEmpty()) {
+            System.out.println("  No walk-in reservations have been made in this session.");
+            System.out.println("  Use Option 3 (Process Next Walk-In Guest) to create reservations.");
+            pressEnterToContinue();
+            return;
+        }
+
+        System.out.printf("  %-10s %-22s %-8s %-12s %-12s %-14s%n",
+                "Res ID", "Guest Name", "Room", "Check-In", "Check-Out", "Status");
+        printDivider();
+
+        int count = 0;
+        for (int i = 0; i < walkInResIds.size(); i++) {
+            String resId = walkInResIds.get(i);
+
+            // Find the reservation in the shared BST
+            Reservation res = null;
+            for (int j = 0; j < reservationList.size(); j++) {
+                if (reservationList.get(j).getReservationId().equalsIgnoreCase(resId)) {
+                    res = reservationList.get(j);
+                    break;
+                }
+            }
+            if (res == null) continue;
+
+            // Look up guest name from guestList
+            String guestName = res.getGuestId();
+            for (int j = 0; j < guestList.size(); j++) {
+                if (guestList.get(j).getGuestId().equalsIgnoreCase(res.getGuestId())) {
+                    guestName = guestList.get(j).getName();
+                    break;
+                }
+            }
+
+            System.out.printf("  %-10s %-22s %-8s %-12s %-12s %-14s%n",
+                    res.getReservationId(),
+                    guestName,
+                    res.getRoomNo(),
+                    res.getCheckInDate().format(DATE_FMT),
+                    res.getCheckOutDate().format(DATE_FMT),
+                    res.getStatus());
+            count++;
+        }
+
+        if (count == 0) {
+            System.out.println("  No walk-in reservations found.");
+        }
+
+        printDivider();
+        System.out.printf("  Total walk-in reservations this session: %d%n", count);
+        System.out.println();
+        System.out.println("  Note: For check-in, check-out, billing, and advanced search,");
+        System.out.println("        use the Front Desk Module from the Main Menu.");
+        pressEnterToContinue();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // Auto-save after every state-changing action
+    // ══════════════════════════════════════════════════════════════
     private void autoSave() {
         DataStore.saveGuests(guestList);
         DataStore.saveReservations(reservationList);
         DataStore.saveRooms(roomList);
     }
 
-    // ── 1. Register Guest ────────────────────────────────────────
-    private void registerGuest() {
-        printHeader("Register Guest");
-        String guestId = String.format("G%03d", guestList.size() + 1);
-        System.out.println("  Guest ID assigned : " + guestId);
-        System.out.println("  (Enter 0 at any field to cancel and go back)");
-        System.out.println();
+    // ══════════════════════════════════════════════════════════════
+    // Helper Methods
+    // ══════════════════════════════════════════════════════════════
 
-        String name = readNonEmptyInput("  Full Name         : ");
-        if (name.equals("0")) { System.out.println("  Registration cancelled."); pressEnterToContinue(); return; }
-
-        String ic = readNonEmptyInput("  IC / Passport No  : ");
-        if (ic.equals("0")) { System.out.println("  Registration cancelled."); pressEnterToContinue(); return; }
-
-        String phone = readNonEmptyInput("  Phone Number      : ");
-        if (phone.equals("0")) { System.out.println("  Registration cancelled."); pressEnterToContinue(); return; }
-
-        String email = readNonEmptyInput("  Email Address     : ");
-        if (email.equals("0")) { System.out.println("  Registration cancelled."); pressEnterToContinue(); return; }
-
-        String nationality = readNonEmptyInput("  Nationality       : ");
-        if (nationality.equals("0")) { System.out.println("  Registration cancelled."); pressEnterToContinue(); return; }
-
-        Guest g = new Guest(guestId, name, ic, phone, email, nationality);
-        guestList.enqueue(g);
-
-        System.out.println();
-        System.out.println("  Guest registered successfully!");
-        System.out.println();
-        makeReservation(guestId);
-        pressEnterToContinue();
-    }
-
-    private String readNonEmptyInput(String prompt) {
-        while (true) {
-            System.out.print(prompt);
-            String input = sc.nextLine().trim();
-            if (input.equals("0")) {
-                return "0";
-            }
-            if (!input.isEmpty()) {
-                return input;
-            }
-            System.out.println("  [!] Field cannot be empty. Please enter a valid value (or 0 to cancel).");
-        }
-    }
-
-    // ── Make Reservation ─────────────────────────────────────────
-    private void makeReservation(String guestId) {
-        printHeader("Make Reservation");
-        displayRoomAvailability(false);  // show rooms without blocking for Enter
-
-        System.out.print("  Enter Room Number  : ");
-        String roomNo = sc.nextLine().trim().toUpperCase();
-
-        Room selectedRoom = findRoom(roomNo);
-        if (selectedRoom == null) {
-            System.out.println("  [!] Room not found.");
-            return;
-        }
-        if (!selectedRoom.isAvailable()) {
-            System.out.println("  [!] Room is not available.");
-            return;
-        }
-
-        LocalDate checkIn  = readDate("  Check-In Date  (DD/MM/YYYY): ");
-        LocalDate checkOut = readDate("  Check-Out Date (DD/MM/YYYY): ");
-        if (checkOut.isBefore(checkIn) || checkOut.isEqual(checkIn)) {
-            System.out.println("  [!] Check-out must be after check-in.");
-            return;
-        }
-
-        System.out.printf("  Number of Guests   (max %d): ", selectedRoom.getCapacity());
-        int numGuests;
-        try { numGuests = Integer.parseInt(sc.nextLine().trim()); }
-        catch (NumberFormatException e) { numGuests = 1; }
-
-        if (numGuests < 1) {
-            System.out.println("  [!] Number of guests must be at least 1.");
-            return;
-        }
-        if (numGuests > selectedRoom.getCapacity()) {
-            System.out.printf("  [!] Room %s can only accommodate %d guest(s). " +
-                    "Please choose a larger room.%n", roomNo, selectedRoom.getCapacity());
-            return;
-        }
-
-        long nights = java.time.temporal.ChronoUnit.DAYS.between(checkIn, checkOut);
-        double total = nights * selectedRoom.getPricePerNight();
-
-        int maxId = 0;
-        for (int i = 0; i < reservationList.size(); i++) {
-            int idNum = parseTrailingNum(reservationList.get(i).getReservationId());
-            if (idNum > maxId) maxId = idNum;
-        }
-        int nextIdNum = Math.max(maxId + 1, resCounter);
-        resCounter = nextIdNum + 1;
-        String resId = String.format("R%03d", nextIdNum);
-        Reservation res = new Reservation(resId, guestId, roomNo, checkIn, checkOut, numGuests, total);
-        res.setStatus(Reservation.ReservationStatus.CONFIRMED);
-        reservationList.add(res);
-        selectedRoom.setStatus(Room.RoomStatus.OCCUPIED);
-
-        System.out.println();
-        System.out.println("  ============================================");
-        System.out.println("        Reservation Confirmation");
-        System.out.println("  ============================================");
-        System.out.printf ("  Reservation ID : %s%n", resId);
-        System.out.printf ("  Guest ID       : %s%n", guestId);
-        System.out.printf ("  Room           : %s (%s)%n", roomNo, selectedRoom.getRoomType());
-        System.out.printf ("  Check-In       : %s%n", checkIn.format(DATE_FMT));
-        System.out.printf ("  Check-Out      : %s%n", checkOut.format(DATE_FMT));
-        System.out.printf ("  Nights         : %d%n", nights);
-        System.out.printf ("  Total Amount   : RM %.2f%n", total);
-        System.out.println("  ============================================");
-    }
-
-    // ── 2. Reservation List ───────────────────────────────────────
-    private void displayReservationList() {
-        printHeader("Reservation List");
-        System.out.printf("  %-12s %-10s %-8s %-12s %-12s %-6s %-12s %-12s%n",
-                "Res ID", "Guest ID", "Room", "Check-In",
-                "Check-Out", "Guests", "Total (RM)", "Status");
-        printDivider();
-
-        int count = 0;
-        for (int i = 0; i < reservationList.size(); i++) {
-            Reservation r = reservationList.get(i);
-            // Only show active reservations — exclude CANCELLED and CHECKED_OUT
-            if (r.getStatus() != Reservation.ReservationStatus.CANCELLED
-                    && r.getStatus() != Reservation.ReservationStatus.CHECKED_OUT) {
-                System.out.println("  " + r);
-                count++;
-            }
-        }
-
-        if (count == 0) {
-            System.out.println("  No active reservations found.");
-        }
-        pressEnterToContinue();
-    }
-
-
-    // ── 3. Room Availability ──────────────────────────────────────
-    public void displayRoomAvailability() {
-        displayRoomAvailability(true);
-    }
-
-    /**
-     * @param withPause  true when invoked from the menu (waits for Enter);
-     *                   false when called internally (e.g. from makeReservation).
-     */
-    private void displayRoomAvailability(boolean withPause) {
-        printHeader("Room Availability");
-        System.out.printf("  %-8s %-12s %-14s %-9s %-20s%n",
-                "Room No", "Type", "Price/Night", "Capacity", "Status");
-        printDivider();
-
-        int available = 0, occupied = 0, maintenance = 0;
-        for (int i = 0; i < roomList.size(); i++) {
-            Room r = roomList.get(i);
-            System.out.println("  " + r);
-            switch (r.getStatus()) {
-                case AVAILABLE:         available++;   break;
-                case OCCUPIED:          occupied++;    break;
-                case UNDER_MAINTENANCE: maintenance++; break;
-            }
-        }
-
-        if (roomList.size() == 0) {
-            System.out.println("  No rooms configured.");
-        }
-
-        printDivider();
-        System.out.printf("  Total: %d room(s)   |   Available: %d   |   Occupied: %d",
-                roomList.size(), available, occupied);
-        if (maintenance > 0) {
-            System.out.printf("   |   Under Maintenance: %d", maintenance);
-        }
-        System.out.println();
-        System.out.println();
-
-        if (withPause) pressEnterToContinue();
-    }
-
-    // ── 4. Choose Room Type ───────────────────────────────────────
-    private void chooseRoomType() {
-        printHeader("Choose Room Type");
-        System.out.println("  1. Single   (max 1 guest)");
-        System.out.println("  2. Standard (max 2 guests)");
-        System.out.println("  3. Deluxe   (max 2-4 guests)");
-        System.out.println("  4. Suite    (max 4 guests)");
-        System.out.println("  5. Villa    (max 8 guests)");
-        System.out.println("  0. Back");
-        printDivider();
-        System.out.print("  Select room type: ");
-        String choice = sc.nextLine().trim();
-
-        Room.RoomType type;
-        switch (choice) {
-            case "1": type = Room.RoomType.SINGLE;   break;
-            case "2": type = Room.RoomType.STANDARD; break;
-            case "3": type = Room.RoomType.DELUXE;   break;
-            case "4": type = Room.RoomType.SUITE;     break;
-            case "5": type = Room.RoomType.VILLA;     break;
-            default:  return;
-        }
-
-        System.out.printf("%n  Available %-10s Rooms:%n", type);
-        System.out.printf("  %-8s %-12s %-14s %-9s %-20s%n",
-                "Room No", "Type", "Price/Night", "Capacity", "Status");
-        printDivider();
-        boolean found = false;
-        for (int i = 0; i < roomList.size(); i++) {
-            Room r = roomList.get(i);
-            if (r.getRoomType() == type && r.isAvailable()) {
-                System.out.println("  " + r);
-                found = true;
-            }
-        }
-        if (!found) System.out.println("  No available rooms of this type.");
-        System.out.println();
-
-        System.out.print("  Would you like to make a reservation? (Y/N): ");
-        if (sc.nextLine().trim().equalsIgnoreCase("Y")) {
-            System.out.print("  Enter Guest ID: ");
-            String gid = sc.nextLine().trim();
-            makeReservation(gid);
-        }
-        pressEnterToContinue();
-    }
-
-    // ── Search Reservation & Integrated Actions ───────────────────
-    private void searchReservation() {
-        printHeader("Search Reservation");
-        System.out.print("  Enter Reservation ID or Guest ID: ");
-        String keyword = sc.nextLine().trim().toUpperCase();
-        if (keyword.isEmpty()) return;
-
-        Reservation foundRes = null;
-        for (int i = 0; i < reservationList.size(); i++) {
-            Reservation r = reservationList.get(i);
-            if (r.getReservationId().equalsIgnoreCase(keyword)
-                    || r.getGuestId().equalsIgnoreCase(keyword)) {
-                foundRes = r;
-                break;
-            }
-        }
-
-        if (foundRes == null) {
-            System.out.println("  [!] No reservation found for: " + keyword);
-            pressEnterToContinue();
-            return;
-        }
-
-        boolean back = false;
-        while (!back) {
-            // Find Guest Name
-            String guestName = foundRes.getGuestId();
-            for (int i = 0; i < guestList.size(); i++) {
-                if (guestList.get(i).getGuestId().equalsIgnoreCase(foundRes.getGuestId())) {
-                    guestName = guestList.get(i).getName();
-                    break;
-                }
-            }
-            Room room = findRoom(foundRes.getRoomNo());
-            String roomType = (room != null) ? room.getRoomType().name() : "N/A";
-
-            ConsoleUtils.clearScreen();
-            System.out.println();
-            System.out.println("  Reservation Found");
-            printDivider();
-            System.out.printf ("  Reservation ID : %s%n", foundRes.getReservationId());
-            System.out.printf ("  Guest Name     : %s (%s)%n", guestName, foundRes.getGuestId());
-            System.out.printf ("  Room Type      : %s%n", roomType);
-            System.out.printf ("  Room No.       : %s%n", foundRes.getRoomNo());
-            System.out.printf ("  Check-In       : %s%n", foundRes.getCheckInDate().format(DATE_FMT));
-            System.out.printf ("  Check-Out      : %s%n", foundRes.getCheckOutDate().format(DATE_FMT));
-            System.out.printf ("  Total Amount   : RM %.2f%n", foundRes.getTotalAmount());
-            System.out.printf ("  Status         : %s%n", foundRes.getStatus());
-            printDivider();
-            System.out.println();
-            System.out.println("  1. Modify Reservation");
-            System.out.println("  2. Cancel Reservation");
-            System.out.println("  0. Back");
-            printDivider();
-            System.out.print("  Enter your choice: ");
-            String choice = sc.nextLine().trim();
-            System.out.println();
-            switch (choice) {
-                case "1":
-                    modifyReservationDirect(foundRes);
-                    autoSave();
-                    break;
-                case "2":
-                    cancelReservationDirect(foundRes);
-                    autoSave();
-                    back = true;
-                    break;
-                case "0":
-                    back = true;
-                    break;
-                default:
-                    System.out.println("  [!] Invalid option. Please try again.");
-            }
-        }
-    }
-
-    private void modifyReservationDirect(Reservation res) {
-        if (res.getStatus() == Reservation.ReservationStatus.CANCELLED
-                || res.getStatus() == Reservation.ReservationStatus.CHECKED_OUT) {
-            System.out.println("  [!] Cannot modify a cancelled or checked-out reservation.");
-            pressEnterToContinue();
-            return;
-        }
-
-        System.out.println("  Current Check-In  : " + res.getCheckInDate().format(DATE_FMT));
-        System.out.println("  Current Check-Out : " + res.getCheckOutDate().format(DATE_FMT));
-        System.out.println("  Current Guests    : " + res.getNumGuests());
-        System.out.println();
-        System.out.print("  New Check-In  Date (DD/MM/YYYY) [Enter to keep]: ");
-        String inStr = sc.nextLine().trim();
-        System.out.print("  New Check-Out Date (DD/MM/YYYY) [Enter to keep]: ");
-        String outStr = sc.nextLine().trim();
-        System.out.print("  New Number of Guests [Enter to keep]: ");
-        String guestStr = sc.nextLine().trim();
-
-        if (!inStr.isEmpty()) {
-            try {
-                res.setCheckInDate(LocalDate.parse(inStr, DATE_FMT));
-            } catch (DateTimeParseException e) {
-                System.out.println("  [!] Invalid date format. Check-in date not changed.");
-            }
-        }
-        if (!outStr.isEmpty()) {
-            try {
-                res.setCheckOutDate(LocalDate.parse(outStr, DATE_FMT));
-            } catch (DateTimeParseException e) {
-                System.out.println("  [!] Invalid date format. Check-out date not changed.");
-            }
-        }
-        if (!guestStr.isEmpty()) {
-            try {
-                int gCount = Integer.parseInt(guestStr);
-                Room room = findRoom(res.getRoomNo());
-                if (room != null && gCount > room.getCapacity()) {
-                    System.out.printf("  [!] Room capacity is %d. Guest count not changed.%n", room.getCapacity());
-                } else if (gCount >= 1) {
-                    res.setNumGuests(gCount);
-                }
-            } catch (NumberFormatException e) {
-                System.out.println("  [!] Invalid number. Guest count not changed.");
-            }
-        }
-
-        Room room = findRoom(res.getRoomNo());
-        if (room != null) {
-            long nights = res.getNumNights();
-            res.setTotalAmount(nights * room.getPricePerNight());
-        }
-        System.out.println();
-        System.out.println("  Reservation updated successfully!");
-        System.out.printf ("  New Total Amount: RM %.2f%n", res.getTotalAmount());
-        pressEnterToContinue();
-    }
-
-    private void cancelReservationDirect(Reservation res) {
-        if (res.getStatus() == Reservation.ReservationStatus.CANCELLED) {
-            System.out.println("  [!] Reservation is already cancelled.");
-            pressEnterToContinue();
-            return;
-        }
-
-        System.out.println();
-        System.out.printf("  Reservation %s for Guest %s will be cancelled.%n",
-                res.getReservationId(), res.getGuestId());
-        System.out.print("  Confirm cancellation? (Y/N): ");
-        if (sc.nextLine().trim().equalsIgnoreCase("Y")) {
-            res.setStatus(Reservation.ReservationStatus.CANCELLED);
-            Room room = findRoom(res.getRoomNo());
-            if (room != null) room.setStatus(Room.RoomStatus.AVAILABLE);
-            reservationList.remove(res);
-            System.out.println("  Reservation cancelled and removed successfully.");
-        } else {
-            System.out.println("  Cancellation aborted.");
-        }
-        pressEnterToContinue();
-    }
-
-    // ── Generate Reports ──────────────────────────────────────────
-    private void generateReports() {
-        printHeader("Walk-In Registration Report");
-        int activeRes = 0;
-        int cancelledRes = 0;
-        double totalRevenue = 0.0;
-        for (int i = 0; i < reservationList.size(); i++) {
-            Reservation r = reservationList.get(i);
-            if (r.getStatus() == Reservation.ReservationStatus.CANCELLED) {
-                cancelledRes++;
-            } else {
-                activeRes++;
-                totalRevenue += r.getTotalAmount();
-            }
-        }
-        int availableRooms = 0;
-        int occupiedRooms = 0;
-        int maintenanceRooms = 0;
-        for (int i = 0; i < roomList.size(); i++) {
-            Room r = roomList.get(i);
-            if (r.getStatus() == Room.RoomStatus.AVAILABLE) availableRooms++;
-            else if (r.getStatus() == Room.RoomStatus.OCCUPIED) occupiedRooms++;
-            else maintenanceRooms++;
-        }
-
-        System.out.println("  Total Guests Registered : " + guestList.size());
-        System.out.println("  Active Reservations     : " + activeRes);
-        System.out.println("  Cancelled Reservations  : " + cancelledRes);
-        System.out.printf ("  Room Breakdown          : %d Available, %d Occupied, %d Maintenance%n",
-                availableRooms, occupiedRooms, maintenanceRooms);
-        System.out.printf ("  Total Expected Revenue  : RM %.2f%n", totalRevenue);
-        printDivider();
-        pressEnterToContinue();
-    }
-
-    // ── Guest Management Sub-Menu ──────────────────────────────────
-    private void guestManagement() {
-        boolean back = false;
-        while (!back) {
-            printHeader("Guest Management");
-            System.out.println("  1. View All Guests (Summary)");
-            System.out.println("  2. Search Guest");
-            System.out.println("  3. Remove Guest");
-            System.out.println("  0. Back");
-            printDivider();
-            System.out.print("  Enter your choice: ");
-            String choice = sc.nextLine().trim();
-            System.out.println();
-            switch (choice) {
-                case "1": viewAllGuestsSummary(); break;
-                case "2": searchGuest();          break;
-                case "3": removeGuest();          break;
-                case "0": back = true;            break;
-                default:  System.out.println("  [!] Invalid option. Please try again.");
-            }
-        }
-    }
-
-    // ── 1. View All Guests (Summary Only) ──────────────────────────
-    private void viewAllGuestsSummary() {
-        printHeader("Guest List (Summary)");
-        System.out.printf("  %-10s %-20s %-15s %-12s%n",
-                "Guest ID", "Full Name", "Phone Number", "Nationality");
-        printDivider();
-
-        int count = 0;
-        for (int i = 0; i < guestList.size(); i++) {
-            Guest g = guestList.get(i);
-            System.out.printf("  %-10s %-20s %-15s %-12s%n",
-                    g.getGuestId(), g.getName(), g.getPhone(), g.getNationality());
-            count++;
-        }
-
-        if (count == 0) {
-            System.out.println("  No guests registered yet.");
-        }
-        pressEnterToContinue();
-    }
-
-    // ── 2. Search Guest ───────────────────────────────────────────
-    private void searchGuest() {
-        printHeader("Search Guest");
-        System.out.print("  Enter Guest ID, Full Name, or IC/Passport: ");
-        String keyword = sc.nextLine().trim().toLowerCase();
-        if (keyword.isEmpty()) return;
-
-        boolean found = false;
-        for (int i = 0; i < guestList.size(); i++) {
-            Guest g = guestList.get(i);
-            if (g.getGuestId().toLowerCase().contains(keyword)
-                    || g.getName().toLowerCase().contains(keyword)
-                    || g.getIcNo().toLowerCase().contains(keyword)) {
-                printFullGuestDetails(g);
-                found = true;
-            }
-        }
-
-        if (!found) {
-            System.out.println("  [!] No guest found matching: " + keyword);
-        }
-        pressEnterToContinue();
-    }
-
-    private void printFullGuestDetails(Guest g) {
-        System.out.println();
-        System.out.println("  ============================================");
-        System.out.println("            Full Guest Details");
-        System.out.println("  ============================================");
-        System.out.printf ("  Guest ID       : %s%n", g.getGuestId());
-        System.out.printf ("  Full Name      : %s%n", g.getName());
-        System.out.printf ("  IC / Passport  : %s%n", g.getIcNo());
-        System.out.printf ("  Phone Number   : %s%n", g.getPhone());
-        System.out.printf ("  Email Address  : %s%n", g.getEmail());
-        System.out.printf ("  Nationality    : %s%n", g.getNationality());
-        System.out.println("  ============================================");
-    }
-
-    // ── 4. Remove Guest ───────────────────────────────────────────
-    private void removeGuest() {
-        printHeader("Remove Guest");
-        System.out.print("  Enter Guest ID to remove: ");
-        String guestId = sc.nextLine().trim();
-        if (guestId.isEmpty()) return;
-
-        int targetIndex = -1;
-        Guest foundGuest = null;
-        for (int i = 0; i < guestList.size(); i++) {
-            if (guestList.get(i).getGuestId().equalsIgnoreCase(guestId)) {
-                targetIndex = i;
-                foundGuest = guestList.get(i);
-                break;
-            }
-        }
-
-        if (foundGuest == null) {
-            System.out.println("  [!] Guest not found with ID: " + guestId);
-            pressEnterToContinue();
-            return;
-        }
-
-        // Display guest details for confirmation
-        printFullGuestDetails(foundGuest);
-        System.out.println();
-        System.out.print("  Are you sure you want to remove this guest from database? (Y/N): ");
-        if (sc.nextLine().trim().equalsIgnoreCase("Y")) {
-            guestList.remove(targetIndex);
-            autoSave();
-            System.out.println();
-            System.out.printf("  [✓] Guest %s (%s) has been successfully removed from database.%n",
-                    foundGuest.getGuestId(), foundGuest.getName());
-        } else {
-            System.out.println("  [!] Removal cancelled.");
-        }
-        pressEnterToContinue();
-    }
-
-    // ── Helpers ──────────────────────────────────────────────────
-    private Room findRoom(String roomNo) {
-        for (int i = 0; i < roomList.size(); i++) {
-            if (roomList.get(i).getRoomNo().equalsIgnoreCase(roomNo))
-                return roomList.get(i);
-        }
-        return null;
-    }
-
-    private Reservation findReservation(String resId) {
-        for (int i = 0; i < reservationList.size(); i++) {
-            if (reservationList.get(i).getReservationId().equalsIgnoreCase(resId))
-                return reservationList.get(i);
-        }
-        return null;
-    }
-
+    /** Reads date, retries on parse error. */
     private LocalDate readDate(String prompt) {
         while (true) {
             System.out.print(prompt);
@@ -671,6 +683,37 @@ public class WalkInRegistrationModule {
         }
     }
 
+    /** Reads check-out date that must be strictly after checkIn. */
+    private LocalDate readDateAfter(String prompt, LocalDate checkIn) {
+        while (true) {
+            LocalDate d = readDate(prompt);
+            if (d.isAfter(checkIn)) return d;
+            System.out.println("  [!] Check-out date must be after check-in date ("
+                    + checkIn.format(DATE_FMT) + "). Please try again.");
+        }
+    }
+
+    /** Reads a non-empty string; returns "0" if user types 0 to cancel. */
+    private String readNonEmptyInput(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            String input = sc.nextLine().trim();
+            if (input.equals("0")) return "0";
+            if (!input.isEmpty()) return input;
+            System.out.println("  [!] Field cannot be empty. Please enter a value (or 0 to cancel).");
+        }
+    }
+
+    /** Finds a Room by room number in the shared roomList. */
+    private Room findRoom(String roomNo) {
+        for (int i = 0; i < roomList.size(); i++) {
+            if (roomList.get(i).getRoomNo().equalsIgnoreCase(roomNo))
+                return roomList.get(i);
+        }
+        return null;
+    }
+
+    /** Prints header and clears screen. */
     private void printHeader(String title) {
         ConsoleUtils.clearScreen();
         System.out.println();
@@ -688,6 +731,16 @@ public class WalkInRegistrationModule {
         sc.nextLine();
     }
 
+    /** Prints "Registration cancelled" and waits for Enter. */
+    private void cancelled() {
+        System.out.println("  Registration cancelled.");
+        pressEnterToContinue();
+    }
+
+    /**
+     * Parses the trailing numeric part of an ID string.
+     * e.g. "G003" -> 3,  "R002" -> 2
+     */
     private int parseTrailingNum(String id) {
         if (id == null || id.isEmpty()) return 0;
         int i = 0;
@@ -699,4 +752,3 @@ public class WalkInRegistrationModule {
         }
     }
 }
-

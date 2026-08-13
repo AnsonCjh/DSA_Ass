@@ -160,4 +160,58 @@ public class BinarySearchTree<T extends Comparable<T>> {
     public TreeNode<T> getRoot() {
         return root;
     }
+
+    // ── Confirmation Number Search ─────────────────────────────────
+    //
+    // BST Tree-Walk Search by Confirmation Number
+    // ─────────────────────────────────────────────────────────────
+    // The BST is keyed (ordered) by Reservation ID via compareTo().
+    // Confirmation numbers are a secondary, non-key attribute, so we
+    // cannot navigate left/right by value. Instead we perform an
+    // in-order BST traversal, visiting every node, and return the
+    // first node whose confirmationNo field matches the target.
+    //
+    // This demonstrates the non-linear BST structure: nodes are visited
+    // via left-subtree → root → right-subtree recursion, making the
+    // tree shape (and O(n) worst-case traversal) explicit.
+    //
+    // For the purposes of this DSA assignment, reservations are
+    // stored in a BST keyed by Reservation ID.  The confirmation-number
+    // search is a full tree-walk on that BST — a different and clearly
+    // labelled BST operation from the O(log n) binary search above.
+
+    /**
+     * BST In-Order Traversal Search by 8-digit Confirmation Number.
+     *
+     * Walks the entire BST (left → node → right) comparing each
+     * Reservation's confirmationNo until a match is found.
+     *
+     * @param confNo 8-digit confirmation number string (e.g. "00000001")
+     * @return the matching Reservation, or null if not found
+     */
+    public dsa_ass.entity.Reservation searchByConfirmation(String confNo) {
+        return searchConfRecursive(root, confNo);
+    }
+
+    private dsa_ass.entity.Reservation searchConfRecursive(
+            TreeNode<T> node, String confNo) {
+        if (node == null) return null;
+
+        // Traverse left subtree first (in-order)
+        dsa_ass.entity.Reservation leftResult =
+                searchConfRecursive(node.left, confNo);
+        if (leftResult != null) return leftResult;
+
+        // Check this node
+        if (node.data instanceof dsa_ass.entity.Reservation) {
+            dsa_ass.entity.Reservation res =
+                    (dsa_ass.entity.Reservation) node.data;
+            if (confNo != null && confNo.equals(res.getConfirmationNo())) {
+                return res;
+            }
+        }
+
+        // Traverse right subtree
+        return searchConfRecursive(node.right, confNo);
+    }
 }

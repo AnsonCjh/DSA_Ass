@@ -165,14 +165,15 @@ public class DataStore {
             for (int i = 0; i < list.size(); i++) {
                 Reservation r = list.get(i);
                 if (r.getStatus() != Reservation.ReservationStatus.CANCELLED) {
-                    pw.println(esc(r.getReservationId()) + SEP
-                             + esc(r.getGuestId())       + SEP
-                             + esc(r.getRoomNo())        + SEP
-                             + r.getCheckInDate()        + SEP
-                             + r.getCheckOutDate()       + SEP
-                             + r.getNumGuests()          + SEP
-                             + r.getTotalAmount()        + SEP
-                             + r.getStatus().name());
+                    pw.println(esc(r.getReservationId())  + SEP
+                             + esc(r.getGuestId())        + SEP
+                             + esc(r.getRoomNo())         + SEP
+                             + r.getCheckInDate()         + SEP
+                             + r.getCheckOutDate()        + SEP
+                             + r.getNumGuests()           + SEP
+                             + r.getTotalAmount()         + SEP
+                             + r.getStatus().name()       + SEP
+                             + esc(r.getConfirmationNo()));
                 }
             }
         } catch (IOException e) {
@@ -182,6 +183,8 @@ public class DataStore {
 
     /**
      * Reads reservations.csv and appends active reservations into list.
+     * Column layout: resId|guestId|roomNo|checkIn|checkOut|numGuests|total|status|confirmationNo
+     * The confirmationNo column (index 8) is optional for backward compatibility.
      * @return highest numeric suffix found in reservation IDs.
      */
     public static int loadReservations(BinarySearchTree<Reservation> list) {
@@ -204,6 +207,10 @@ public class DataStore {
                 Reservation.ReservationStatus status =
                         Reservation.ReservationStatus.valueOf(p[7]);
                 res.setStatus(status);
+                // Load confirmationNo if present (column 9, index 8)
+                if (p.length >= 9 && !p[8].isEmpty()) {
+                    res.setConfirmationNo(p[8]);
+                }
                 max = Math.max(max, parseTrailingNum(p[0]));
                 if (status != Reservation.ReservationStatus.CANCELLED) {
                     list.add(res);
