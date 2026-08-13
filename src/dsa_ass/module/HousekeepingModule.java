@@ -1,6 +1,7 @@
 package dsa_ass.module;
 
-import dsa_ass.adt.LinkedList;
+import dsa_ass.adt.Queue;
+import dsa_ass.adt.Stack;
 import dsa_ass.entity.CleaningTask;
 import dsa_ass.entity.Room;
 import dsa_ass.util.ConsoleUtils;
@@ -12,11 +13,12 @@ import java.util.Scanner;
 /**
  * Housekeeping Module
  * Handles: Cleaning Task Management, Room Inspection, Task Records
+ * ADT Used: Stack<CleaningTask> (LIFO Stack ADT)
  */
 public class HousekeepingModule {
 
-    private final LinkedList<CleaningTask> taskList;
-    private final LinkedList<Room>         roomList;
+    private final Stack<CleaningTask> taskList;
+    private final Queue<Room>         roomList;
     private final Scanner sc;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -25,9 +27,9 @@ public class HousekeepingModule {
     /** Called by DataStore after loading saved data to prevent ID collisions. */
     public static void setTaskCounter(int n) { taskCounter = n; }
 
-    public HousekeepingModule(LinkedList<CleaningTask> taskList,
-                              LinkedList<Room> roomList,
-                              Scanner sc) {
+    public HousekeepingModule(Stack<CleaningTask> taskList,
+                             Queue<Room> roomList,
+                             Scanner sc) {
         this.taskList = taskList;
         this.roomList = roomList;
         this.sc       = sc;
@@ -122,7 +124,7 @@ public class HousekeepingModule {
         String remarks = sc.nextLine().trim();
 
         CleaningTask task = new CleaningTask(taskId, roomNo, staff, priority, LocalDate.now(), remarks);
-        taskList.add(task);
+        taskList.push(task);
         taskCounter++;
 
         System.out.println();

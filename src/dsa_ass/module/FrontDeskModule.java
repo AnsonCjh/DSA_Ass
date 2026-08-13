@@ -1,6 +1,7 @@
 package dsa_ass.module;
 
-import dsa_ass.adt.LinkedList;
+import dsa_ass.adt.BinarySearchTree;
+import dsa_ass.adt.Queue;
 import dsa_ass.entity.Guest;
 import dsa_ass.entity.Reservation;
 import dsa_ass.entity.Room;
@@ -13,19 +14,20 @@ import java.util.Scanner;
  * Front Desk Module
  * Handles: Check In, Check Out, Guest Inquiry, Room Information,
  *          Billing & Payment, Update Guest Information
+ * ADT Used: BinarySearchTree<Reservation> (BST ADT)
  */
 public class FrontDeskModule {
 
-    private final LinkedList<Guest>       guestList;
-    private final LinkedList<Reservation> reservationList;
-    private final LinkedList<Room>        roomList;
+    private final Queue<Guest>                 guestList;
+    private final BinarySearchTree<Reservation> reservationList;
+    private final Queue<Room>                  roomList;
     private final Scanner sc;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    public FrontDeskModule(LinkedList<Guest> guestList,
-                           LinkedList<Reservation> reservationList,
-                           LinkedList<Room> roomList,
+    public FrontDeskModule(Queue<Guest> guestList,
+                           BinarySearchTree<Reservation> reservationList,
+                           Queue<Room> roomList,
                            Scanner sc) {
         this.guestList       = guestList;
         this.reservationList = reservationList;

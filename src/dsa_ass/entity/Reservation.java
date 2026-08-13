@@ -5,7 +5,7 @@ import java.time.LocalDate;
 /**
  * Reservation entity - links a guest to a room with dates
  */
-public class Reservation {
+public class Reservation implements Comparable<Reservation> {
 
     public enum ReservationStatus { PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED }
 
@@ -53,6 +53,13 @@ public class Reservation {
     }
 
     @Override
+    public int compareTo(Reservation other) {
+        if (other == null || other.reservationId == null) return 1;
+        if (this.reservationId == null) return -1;
+        return this.reservationId.compareToIgnoreCase(other.reservationId);
+    }
+
+    @Override
     public String toString() {
         return String.format("%-12s %-10s %-8s %-12s %-12s %-6d RM%-10.2f %-12s",
                 reservationId, guestId, roomNo,
@@ -60,3 +67,4 @@ public class Reservation {
                 numGuests, totalAmount, status);
     }
 }
+

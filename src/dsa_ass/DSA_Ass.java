@@ -5,7 +5,9 @@
  */
 package dsa_ass;
 
-import dsa_ass.adt.LinkedList;
+import dsa_ass.adt.BinarySearchTree;
+import dsa_ass.adt.Queue;
+import dsa_ass.adt.Stack;
 import dsa_ass.util.ConsoleUtils;
 import dsa_ass.util.DataStore;
 import dsa_ass.entity.CleaningTask;
@@ -21,15 +23,15 @@ import java.util.Scanner;
 
 /**
  * Main entry point - displays Main Menu and delegates to modules.
- * All data is stored in LinkedList<T> (custom Singly Linked List ADT).
+ * ADTs Used: Queue<Guest>, Stack<CleaningTask>, BinarySearchTree<Reservation>, Queue<Room>
  */
 public class DSA_Ass {
 
-    // ── Shared data stores (LinkedList ADT) ─────────────────────
-    private static final LinkedList<Guest>        guestList       = new LinkedList<Guest>();
-    private static final LinkedList<Reservation>  reservationList = new LinkedList<Reservation>();
-    private static final LinkedList<Room>          roomList        = new LinkedList<Room>();
-    private static final LinkedList<CleaningTask>  taskList        = new LinkedList<CleaningTask>();
+    // ── Shared data stores (Queue / Stack / BST ADTs) ───────────
+    private static final Queue<Guest>                  guestList       = new Queue<Guest>();
+    private static final BinarySearchTree<Reservation> reservationList = new BinarySearchTree<Reservation>();
+    private static final Queue<Room>                   roomList        = new Queue<Room>();
+    private static final Stack<CleaningTask>           taskList        = new Stack<CleaningTask>();
 
     private static final Scanner sc = new Scanner(System.in);
 
@@ -134,29 +136,29 @@ public class DSA_Ass {
 
     // ── Seed Fixed Rooms (always called on every startup) ───────────
     private static void seedRooms() {
-        roomList.add(new Room("S001", Room.RoomType.SINGLE,   99.00,  1));
-        roomList.add(new Room("S002", Room.RoomType.SINGLE,   99.00,  1));
-        roomList.add(new Room("R101", Room.RoomType.STANDARD, 180.00, 2));
-        roomList.add(new Room("R102", Room.RoomType.STANDARD, 180.00, 2));
-        roomList.add(new Room("R201", Room.RoomType.DELUXE,   280.00, 2));
-        roomList.add(new Room("R202", Room.RoomType.DELUXE,   280.00, 4));
-        roomList.add(new Room("R301", Room.RoomType.SUITE,    450.00, 4));
-        roomList.add(new Room("R302", Room.RoomType.SUITE,    450.00, 4));
-        roomList.add(new Room("V001", Room.RoomType.VILLA,    950.00, 8));
-        roomList.add(new Room("V002", Room.RoomType.VILLA,    950.00, 8));
+        roomList.enqueue(new Room("S001", Room.RoomType.SINGLE,   99.00,  1));
+        roomList.enqueue(new Room("S002", Room.RoomType.SINGLE,   99.00,  1));
+        roomList.enqueue(new Room("R101", Room.RoomType.STANDARD, 180.00, 2));
+        roomList.enqueue(new Room("R102", Room.RoomType.STANDARD, 180.00, 2));
+        roomList.enqueue(new Room("R201", Room.RoomType.DELUXE,   280.00, 2));
+        roomList.enqueue(new Room("R202", Room.RoomType.DELUXE,   280.00, 4));
+        roomList.enqueue(new Room("R301", Room.RoomType.SUITE,    450.00, 4));
+        roomList.enqueue(new Room("R302", Room.RoomType.SUITE,    450.00, 4));
+        roomList.enqueue(new Room("V001", Room.RoomType.VILLA,    950.00, 8));
+        roomList.enqueue(new Room("V002", Room.RoomType.VILLA,    950.00, 8));
     }
 
     // ── Seed Sample Guests & Tasks (first run only) ──────────────
     private static void seedGuestsAndTasks() {
         // Sample Guests  (G001 – G003)
-        guestList.add(new Guest("G001", "Ahmad Faris",  "990101-14-5678", "012-3456789", "ahmad@mail.com",  "Malaysian"));
-        guestList.add(new Guest("G002", "Priya Nair",   "P12345678",      "016-9876543", "priya@mail.com",  "Indian"));
-        guestList.add(new Guest("G003", "Lim Wei Xian", "010203-10-1234", "011-2233445", "limwx@mail.com",  "Malaysian"));
+        guestList.enqueue(new Guest("G001", "Ahmad Faris",  "990101-14-5678", "012-3456789", "ahmad@mail.com",  "Malaysian"));
+        guestList.enqueue(new Guest("G002", "Priya Nair",   "P12345678",      "016-9876543", "priya@mail.com",  "Indian"));
+        guestList.enqueue(new Guest("G003", "Lim Wei Xian", "010203-10-1234", "011-2233445", "limwx@mail.com",  "Malaysian"));
 
         // Sample Cleaning Tasks  (T0001 – T0002)
-        taskList.add(new CleaningTask("T0001", "R101", "Siti Aisyah",
+        taskList.push(new CleaningTask("T0001", "R101", "Siti Aisyah",
                 CleaningTask.TaskPriority.MEDIUM, LocalDate.now(), "Routine daily clean"));
-        taskList.add(new CleaningTask("T0002", "V001", "Rajendran",
+        taskList.push(new CleaningTask("T0002", "V001", "Rajendran",
                 CleaningTask.TaskPriority.HIGH, LocalDate.now(), "Post-checkout deep clean"));
 
         HousekeepingModule.setTaskCounter(3);  // next: T0003  (T0001-T0002 seeded)

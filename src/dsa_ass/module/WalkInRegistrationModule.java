@@ -1,6 +1,7 @@
 package dsa_ass.module;
 
-import dsa_ass.adt.LinkedList;
+import dsa_ass.adt.BinarySearchTree;
+import dsa_ass.adt.Queue;
 import dsa_ass.entity.Guest;
 import dsa_ass.entity.Reservation;
 import dsa_ass.entity.Room;
@@ -18,9 +19,9 @@ import java.util.Scanner;
  */
 public class WalkInRegistrationModule {
 
-    private final LinkedList<Guest>       guestList;
-    private final LinkedList<Reservation> reservationList;
-    private final LinkedList<Room>        roomList;
+    private final Queue<Guest>                 guestList;
+    private final BinarySearchTree<Reservation> reservationList;
+    private final Queue<Room>                  roomList;
     private final Scanner sc;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -31,9 +32,9 @@ public class WalkInRegistrationModule {
     public static void setGuestCounter(int n) { guestCounter = n; }
     public static void setResCounter(int n)   { resCounter   = n; }
 
-    public WalkInRegistrationModule(LinkedList<Guest> guestList,
-                                    LinkedList<Reservation> reservationList,
-                                    LinkedList<Room> roomList,
+    public WalkInRegistrationModule(Queue<Guest> guestList,
+                                    BinarySearchTree<Reservation> reservationList,
+                                    Queue<Room> roomList,
                                     Scanner sc) {
         this.guestList       = guestList;
         this.reservationList = reservationList;
@@ -121,14 +122,12 @@ public class WalkInRegistrationModule {
         if (nationality.equals("0")) { System.out.println("  Registration cancelled."); pressEnterToContinue(); return; }
 
         Guest g = new Guest(guestId, name, ic, phone, email, nationality);
-        guestList.add(g);
+        guestList.enqueue(g);
 
         System.out.println();
         System.out.println("  Guest registered successfully!");
-        System.out.print("\n  Would you like to make a reservation now? (Y/N): ");
-        if (sc.nextLine().trim().equalsIgnoreCase("Y")) {
-            makeReservation(guestId);
-        }
+        System.out.println();
+        makeReservation(guestId);
         pressEnterToContinue();
     }
 
@@ -189,14 +188,14 @@ public class WalkInRegistrationModule {
         long nights = java.time.temporal.ChronoUnit.DAYS.between(checkIn, checkOut);
         double total = nights * selectedRoom.getPricePerNight();
 
-        // Count only non-cancelled reservations so ID restarts when all are cancelled/removed
-        int activeResCount = 0;
+        int maxId = 0;
         for (int i = 0; i < reservationList.size(); i++) {
-            if (reservationList.get(i).getStatus() != Reservation.ReservationStatus.CANCELLED) {
-                activeResCount++;
-            }
+            int idNum = parseTrailingNum(reservationList.get(i).getReservationId());
+            if (idNum > maxId) maxId = idNum;
         }
-        String resId = String.format("R%03d", activeResCount + 1);
+        int nextIdNum = Math.max(maxId + 1, resCounter);
+        resCounter = nextIdNum + 1;
+        String resId = String.format("R%03d", nextIdNum);
         Reservation res = new Reservation(resId, guestId, roomNo, checkIn, checkOut, numGuests, total);
         res.setStatus(Reservation.ReservationStatus.CONFIRMED);
         reservationList.add(res);
@@ -480,7 +479,8 @@ public class WalkInRegistrationModule {
             res.setStatus(Reservation.ReservationStatus.CANCELLED);
             Room room = findRoom(res.getRoomNo());
             if (room != null) room.setStatus(Room.RoomStatus.AVAILABLE);
-            System.out.println("  Reservation cancelled successfully.");
+            reservationList.remove(res);
+            System.out.println("  Reservation cancelled and removed successfully.");
         } else {
             System.out.println("  Cancellation aborted.");
         }
@@ -529,9 +529,7 @@ public class WalkInRegistrationModule {
             printHeader("Guest Management");
             System.out.println("  1. View All Guests (Summary)");
             System.out.println("  2. Search Guest");
-            System.out.println("  3. View Guest Details");
-            System.out.println("  4. Sort Guest List");
-            System.out.println("  5. Remove Guest");
+            System.out.println("  3. Remove Guest");
             System.out.println("  0. Back");
             printDivider();
             System.out.print("  Enter your choice: ");
@@ -540,9 +538,7 @@ public class WalkInRegistrationModule {
             switch (choice) {
                 case "1": viewAllGuestsSummary(); break;
                 case "2": searchGuest();          break;
-                case "3": viewGuestDetails();     break;
-                case "4": sortGuestListMenu();    break;
-                case "5": removeGuest();          break;
+                case "3": removeGuest();          break;
                 case "0": back = true;            break;
                 default:  System.out.println("  [!] Invalid option. Please try again.");
             }
@@ -594,31 +590,6 @@ public class WalkInRegistrationModule {
         pressEnterToContinue();
     }
 
-    // ── 3. View Guest Details ──────────────────────────────────────
-    private void viewGuestDetails() {
-        printHeader("View Guest Details");
-        System.out.print("  Enter Guest ID: ");
-        String id = sc.nextLine().trim();
-        if (id.isEmpty()) return;
-
-        Guest g = findGuestById(id);
-        if (g != null) {
-            printFullGuestDetails(g);
-        } else {
-            System.out.println("  [!] Guest not found with ID: " + id);
-        }
-        pressEnterToContinue();
-    }
-
-    private Guest findGuestById(String guestId) {
-        for (int i = 0; i < guestList.size(); i++) {
-            if (guestList.get(i).getGuestId().equalsIgnoreCase(guestId)) {
-                return guestList.get(i);
-            }
-        }
-        return null;
-    }
-
     private void printFullGuestDetails(Guest g) {
         System.out.println();
         System.out.println("  ============================================");
@@ -633,76 +604,7 @@ public class WalkInRegistrationModule {
         System.out.println("  ============================================");
     }
 
-    // ── 4. Sort Guest List (Selection Sort) ────────────────────────
-    private void sortGuestListMenu() {
-        printHeader("Sort Guest List");
-        System.out.println("  1. Sort by Guest ID");
-        System.out.println("  2. Sort by Full Name");
-        System.out.println("  3. Sort by Nationality");
-        System.out.println("  0. Back");
-        printDivider();
-        System.out.print("  Select sort option: ");
-        String choice = sc.nextLine().trim();
-
-        int criteria = 0;
-        String criteriaName = "";
-        switch (choice) {
-            case "1": criteria = 1; criteriaName = "Guest ID";    break;
-            case "2": criteria = 2; criteriaName = "Full Name";   break;
-            case "3": criteria = 3; criteriaName = "Nationality"; break;
-            case "0": return;
-            default:  System.out.println("  [!] Invalid option."); return;
-        }
-
-        performSelectionSortGuests(criteria);
-        autoSave();
-
-        System.out.println();
-        System.out.printf("  [✓] Guest list successfully sorted by %s! (Selection Sort applied)%n", criteriaName);
-        System.out.println();
-        viewAllGuestsSummary();
-    }
-
-    /**
-     * Custom Selection Sort Algorithm for LinkedList<Guest> ADT.
-     * Operates directly on custom LinkedList without Java Collections Framework.
-     *
-     * @param criteria 1 = Guest ID, 2 = Full Name, 3 = Nationality
-     */
-    private void performSelectionSortGuests(int criteria) {
-        int n = guestList.size();
-        if (n <= 1) return;
-
-        for (int i = 0; i < n - 1; i++) {
-            int minIndex = i;
-            for (int j = i + 1; j < n; j++) {
-                Guest g1 = guestList.get(minIndex);
-                Guest g2 = guestList.get(j);
-                int comp = 0;
-                switch (criteria) {
-                    case 1: // Guest ID
-                        comp = g1.getGuestId().compareToIgnoreCase(g2.getGuestId());
-                        break;
-                    case 2: // Full Name
-                        comp = g1.getName().compareToIgnoreCase(g2.getName());
-                        break;
-                    case 3: // Nationality
-                        comp = g1.getNationality().compareToIgnoreCase(g2.getNationality());
-                        break;
-                }
-                if (comp > 0) {
-                    minIndex = j;
-                }
-            }
-            if (minIndex != i) {
-                Guest temp = guestList.get(i);
-                guestList.set(i, guestList.get(minIndex));
-                guestList.set(minIndex, temp);
-            }
-        }
-    }
-
-    // ── 5. Remove Guest ───────────────────────────────────────────
+    // ── 4. Remove Guest ───────────────────────────────────────────
     private void removeGuest() {
         printHeader("Remove Guest");
         System.out.print("  Enter Guest ID to remove: ");
@@ -785,4 +687,16 @@ public class WalkInRegistrationModule {
         System.out.print("\n  Press Enter to continue...");
         sc.nextLine();
     }
+
+    private int parseTrailingNum(String id) {
+        if (id == null || id.isEmpty()) return 0;
+        int i = 0;
+        while (i < id.length() && !Character.isDigit(id.charAt(i))) i++;
+        try {
+            return Integer.parseInt(id.substring(i));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
 }
+

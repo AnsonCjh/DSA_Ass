@@ -1,6 +1,8 @@
 package dsa_ass.util;
 
-import dsa_ass.adt.LinkedList;
+import dsa_ass.adt.BinarySearchTree;
+import dsa_ass.adt.Queue;
+import dsa_ass.adt.Stack;
 import dsa_ass.entity.CleaningTask;
 import dsa_ass.entity.Guest;
 import dsa_ass.entity.Reservation;
@@ -39,10 +41,10 @@ public class DataStore {
      * Persists all four data lists to their respective CSV files.
      * Creates the data/ directory automatically if it does not exist.
      */
-    public static void saveAll(LinkedList<Guest>        guests,
-                               LinkedList<Room>          rooms,
-                               LinkedList<Reservation>   reservations,
-                               LinkedList<CleaningTask>  tasks) {
+    public static void saveAll(Queue<Guest>                  guests,
+                               Queue<Room>                   rooms,
+                               BinarySearchTree<Reservation> reservations,
+                               Stack<CleaningTask>           tasks) {
         ensureDataDir();
         saveGuests(guests);
         saveRooms(rooms);
@@ -59,10 +61,10 @@ public class DataStore {
      *
      * @return int[] { maxGuestNum, maxResNum, maxTaskNum }
      */
-    public static int[] loadAll(LinkedList<Guest>        guests,
-                                LinkedList<Room>          rooms,
-                                LinkedList<Reservation>   reservations,
-                                LinkedList<CleaningTask>  tasks) {
+    public static int[] loadAll(Queue<Guest>                  guests,
+                                Queue<Room>                   rooms,
+                                BinarySearchTree<Reservation> reservations,
+                                Stack<CleaningTask>           tasks) {
         int maxGuest = loadGuests(guests);
         // rooms are seeded from code — skip loadRooms() to avoid duplicates
         int maxRes   = loadReservations(reservations);
@@ -73,7 +75,7 @@ public class DataStore {
     // ── Guests ────────────────────────────────────────────────────────────────
 
     /** Writes all guests to guests.csv. */
-    public static void saveGuests(LinkedList<Guest> list) {
+    public static void saveGuests(Queue<Guest> list) {
         try (PrintWriter pw = new PrintWriter(new FileWriter(GUESTS_FILE))) {
             for (int i = 0; i < list.size(); i++) {
                 Guest g = list.get(i);
@@ -90,10 +92,10 @@ public class DataStore {
     }
 
     /**
-     * Reads guests.csv and appends into list.
+     * Reads guests.csv and appends into list via enqueue.
      * @return highest numeric suffix found in guest IDs (e.g. 3 for "G0003").
      */
-    public static int loadGuests(LinkedList<Guest> list) {
+    public static int loadGuests(Queue<Guest> list) {
         int max = 0;
         File f = new File(GUESTS_FILE);
         if (!f.exists()) return max;
@@ -104,7 +106,7 @@ public class DataStore {
                 if (line.isEmpty()) continue;
                 String[] p = line.split(SEP_REGEX, -1);
                 if (p.length < 6) continue;
-                list.add(new Guest(p[0], p[1], p[2], p[3], p[4], p[5]));
+                list.enqueue(new Guest(p[0], p[1], p[2], p[3], p[4], p[5]));
                 max = Math.max(max, parseTrailingNum(p[0]));
             }
         } catch (IOException e) {
@@ -116,7 +118,7 @@ public class DataStore {
     // ── Rooms ─────────────────────────────────────────────────────────────────
 
     /** Writes all rooms (including current status) to rooms.csv. */
-    public static void saveRooms(LinkedList<Room> list) {
+    public static void saveRooms(Queue<Room> list) {
         try (PrintWriter pw = new PrintWriter(new FileWriter(ROOMS_FILE))) {
             for (int i = 0; i < list.size(); i++) {
                 Room r = list.get(i);
@@ -132,7 +134,7 @@ public class DataStore {
     }
 
     /** Reads rooms.csv and appends into list (including persisted status). */
-    public static void loadRooms(LinkedList<Room> list) {
+    public static void loadRooms(Queue<Room> list) {
         File f = new File(ROOMS_FILE);
         if (!f.exists()) return;
         try (BufferedReader br = new BufferedReader(new FileReader(f))) {
@@ -148,7 +150,7 @@ public class DataStore {
                         Double.parseDouble(p[2]),
                         Integer.parseInt(p[3]));
                 r.setStatus(Room.RoomStatus.valueOf(p[4]));
-                list.add(r);
+                list.enqueue(r);
             }
         } catch (IOException e) {
             System.out.println("  [!] Could not load rooms: " + e.getMessage());
@@ -157,19 +159,21 @@ public class DataStore {
 
     // ── Reservations ──────────────────────────────────────────────────────────
 
-    /** Writes all reservations to reservations.csv. */
-    public static void saveReservations(LinkedList<Reservation> list) {
+    /** Writes all active reservations to reservations.csv. */
+    public static void saveReservations(BinarySearchTree<Reservation> list) {
         try (PrintWriter pw = new PrintWriter(new FileWriter(RES_FILE))) {
             for (int i = 0; i < list.size(); i++) {
                 Reservation r = list.get(i);
-                pw.println(esc(r.getReservationId()) + SEP
-                         + esc(r.getGuestId())       + SEP
-                         + esc(r.getRoomNo())        + SEP
-                         + r.getCheckInDate()        + SEP
-                         + r.getCheckOutDate()       + SEP
-                         + r.getNumGuests()          + SEP
-                         + r.getTotalAmount()        + SEP
-                         + r.getStatus().name());
+                if (r.getStatus() != Reservation.ReservationStatus.CANCELLED) {
+                    pw.println(esc(r.getReservationId()) + SEP
+                             + esc(r.getGuestId())       + SEP
+                             + esc(r.getRoomNo())        + SEP
+                             + r.getCheckInDate()        + SEP
+                             + r.getCheckOutDate()       + SEP
+                             + r.getNumGuests()          + SEP
+                             + r.getTotalAmount()        + SEP
+                             + r.getStatus().name());
+                }
             }
         } catch (IOException e) {
             System.out.println("  [!] Could not save reservations: " + e.getMessage());
@@ -177,12 +181,10 @@ public class DataStore {
     }
 
     /**
-     * Reads reservations.csv and appends into list.
-     * @return highest numeric suffix found in reservation IDs (CANCELLED records
-     *         are still loaded but do NOT advance the counter, so IDs are
-     *         re-used once all reservations are cancelled).
+     * Reads reservations.csv and appends active reservations into list.
+     * @return highest numeric suffix found in reservation IDs.
      */
-    public static int loadReservations(LinkedList<Reservation> list) {
+    public static int loadReservations(BinarySearchTree<Reservation> list) {
         int max = 0;
         File f = new File(RES_FILE);
         if (!f.exists()) return max;
@@ -202,10 +204,9 @@ public class DataStore {
                 Reservation.ReservationStatus status =
                         Reservation.ReservationStatus.valueOf(p[7]);
                 res.setStatus(status);
-                list.add(res);
-                // Only advance the counter for records that are not cancelled
+                max = Math.max(max, parseTrailingNum(p[0]));
                 if (status != Reservation.ReservationStatus.CANCELLED) {
-                    max = Math.max(max, parseTrailingNum(p[0]));
+                    list.add(res);
                 }
             }
         } catch (IOException e) {
@@ -217,7 +218,7 @@ public class DataStore {
     // ── Cleaning Tasks ────────────────────────────────────────────────────────
 
     /** Writes all cleaning tasks to tasks.csv. */
-    public static void saveTasks(LinkedList<CleaningTask> list) {
+    public static void saveTasks(Stack<CleaningTask> list) {
         try (PrintWriter pw = new PrintWriter(new FileWriter(TASKS_FILE))) {
             for (int i = 0; i < list.size(); i++) {
                 CleaningTask t = list.get(i);
@@ -238,7 +239,7 @@ public class DataStore {
      * Reads tasks.csv and appends into list.
      * @return highest numeric suffix found in task IDs.
      */
-    public static int loadTasks(LinkedList<CleaningTask> list) {
+    public static int loadTasks(Stack<CleaningTask> list) {
         int max = 0;
         File f = new File(TASKS_FILE);
         if (!f.exists()) return max;
@@ -255,7 +256,7 @@ public class DataStore {
                         LocalDate.parse(p[5]),
                         p[6]);
                 t.setStatus(CleaningTask.TaskStatus.valueOf(p[4]));
-                list.add(t);
+                list.push(t);
                 max = Math.max(max, parseTrailingNum(p[0]));
             }
         } catch (IOException e) {
