@@ -76,8 +76,6 @@ public class WalkInRegistrationModule {
         while (!back) {
             ConsoleUtils.clearScreen();
             printHeader("Walk-In Registration Module");
-            System.out.println("  [Queue ADT - FIFO Walk-In Management]");
-            System.out.println();
             System.out.println("  1. Register Walk-In Guest");
             System.out.println("  2. View Walk-In Queue");
             System.out.println("  3. Process Next Walk-In Guest");
@@ -112,19 +110,6 @@ public class WalkInRegistrationModule {
         System.out.println("  (Enter 0 at any field to cancel)");
         System.out.println();
 
-        // Generate unique guest ID by scanning current max
-        int maxId = 0;
-        for (int i = 0; i < guestList.size(); i++) {
-            int num = parseTrailingNum(guestList.get(i).getGuestId());
-            if (num > maxId) maxId = num;
-        }
-        int nextIdNum = Math.max(maxId + 1, guestCounter);
-        guestCounter = nextIdNum + 1;
-        String guestId = String.format("G%03d", nextIdNum);
-
-        System.out.println("  Assigned Guest ID : " + guestId);
-        System.out.println();
-
         String name = readNonEmptyInput("  Full Name         : ");
         if (name.equals("0")) { cancelled(); return; }
 
@@ -139,6 +124,17 @@ public class WalkInRegistrationModule {
 
         String nationality = readNonEmptyInput("  Nationality       : ");
         if (nationality.equals("0")) { cancelled(); return; }
+
+        // Generate unique guest ID only after all inputs are confirmed (prevent counter
+        // from advancing on every cancelled visit to this page)
+        int maxId = 0;
+        for (int i = 0; i < guestList.size(); i++) {
+            int num = parseTrailingNum(guestList.get(i).getGuestId());
+            if (num > maxId) maxId = num;
+        }
+        int nextIdNum = Math.max(maxId + 1, guestCounter);
+        guestCounter = nextIdNum + 1;
+        String guestId = String.format("G%03d", nextIdNum);
 
         Guest g = new Guest(guestId, name, ic, phone, email, nationality);
 
