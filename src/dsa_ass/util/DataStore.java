@@ -66,7 +66,7 @@ public class DataStore {
                                 BinarySearchTree<Reservation> reservations,
                                 Stack<CleaningTask>           tasks) {
         int maxGuest = loadGuests(guests);
-        // rooms are seeded from code — skip loadRooms() to avoid duplicates
+        loadRooms(rooms);
         int maxRes   = loadReservations(reservations);
         int maxTask  = loadTasks(tasks);
         return new int[]{ maxGuest, maxRes, maxTask };
@@ -133,7 +133,7 @@ public class DataStore {
         }
     }
 
-    /** Reads rooms.csv and appends into list (including persisted status). */
+    /** Reads rooms.csv and syncs room status into existing list (or appends new rooms). */
     public static void loadRooms(Queue<Room> list) {
         File f = new File(ROOMS_FILE);
         if (!f.exists()) return;
@@ -144,13 +144,31 @@ public class DataStore {
                 if (line.isEmpty()) continue;
                 String[] p = line.split(SEP_REGEX, -1);
                 if (p.length < 5) continue;
-                Room r = new Room(
-                        p[0],
-                        Room.RoomType.valueOf(p[1]),
-                        Double.parseDouble(p[2]),
-                        Integer.parseInt(p[3]));
-                r.setStatus(Room.RoomStatus.valueOf(p[4]));
-                list.enqueue(r);
+                String roomNo = p[0];
+                Room.RoomStatus status;
+                try {
+                    status = Room.RoomStatus.valueOf(p[4]);
+                } catch (IllegalArgumentException e) {
+                    status = Room.RoomStatus.AVAILABLE;
+                }
+                boolean found = false;
+                for (int i = 0; i < list.size(); i++) {
+                    Room r = list.get(i);
+                    if (r.getRoomNo().equalsIgnoreCase(roomNo)) {
+                        r.setStatus(status);
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    Room r = new Room(
+                            p[0],
+                            Room.RoomType.valueOf(p[1]),
+                            Double.parseDouble(p[2]),
+                            Integer.parseInt(p[3]));
+                    r.setStatus(status);
+                    list.enqueue(r);
+                }
             }
         } catch (IOException e) {
             System.out.println("  [!] Could not load rooms: " + e.getMessage());
@@ -224,10 +242,10 @@ public class DataStore {
 
     // ── Cleaning Tasks ────────────────────────────────────────────────────────
 
-    /** Writes all cleaning tasks to tasks.csv. */
+    /** Writes all cleaning tasks to tasks.csv (in bottom-to-top order to maintain LIFO stack order on reload). */
     public static void saveTasks(Stack<CleaningTask> list) {
         try (PrintWriter pw = new PrintWriter(new FileWriter(TASKS_FILE))) {
-            for (int i = 0; i < list.size(); i++) {
+            for (int i = list.size() - 1; i >= 0; i--) {
                 CleaningTask t = list.get(i);
                 pw.println(esc(t.getTaskId())        + SEP
                          + esc(t.getRoomNo())        + SEP

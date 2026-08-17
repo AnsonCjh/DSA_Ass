@@ -2,6 +2,8 @@ package dsa_ass.module;
 
 import dsa_ass.adt.BinarySearchTree;
 import dsa_ass.adt.Queue;
+import dsa_ass.adt.Stack;
+import dsa_ass.entity.CleaningTask;
 import dsa_ass.entity.Guest;
 import dsa_ass.entity.Reservation;
 import dsa_ass.entity.Room;
@@ -35,6 +37,7 @@ public class FrontDeskModule {
     private final Queue<Guest>                 guestList;
     private final BinarySearchTree<Reservation> reservationList;
     private final Queue<Room>                  roomList;
+    private final Stack<CleaningTask>           taskList;
     private final Scanner sc;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -42,11 +45,20 @@ public class FrontDeskModule {
     public FrontDeskModule(Queue<Guest>                 guestList,
                            BinarySearchTree<Reservation> reservationList,
                            Queue<Room>                  roomList,
+                           Stack<CleaningTask>           taskList,
                            Scanner sc) {
         this.guestList       = guestList;
         this.reservationList = reservationList;
         this.roomList        = roomList;
+        this.taskList        = taskList;
         this.sc              = sc;
+    }
+
+    public FrontDeskModule(Queue<Guest>                 guestList,
+                           BinarySearchTree<Reservation> reservationList,
+                           Queue<Room>                  roomList,
+                           Scanner sc) {
+        this(guestList, reservationList, roomList, null, sc);
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -501,6 +513,20 @@ public class FrontDeskModule {
             return;
         }
 
+        // Room readiness guard
+        Room room = findRoom(res.getRoomNo());
+        if (room != null && !room.isAvailable()) {
+            System.out.println();
+            System.out.printf("  [!] Notice: Room %s is currently '%s'.%n", room.getRoomNo(), room.getStatus());
+            System.out.println("      Room must be READY_FOR_CHECK_IN before guest check-in.");
+            System.out.print("      Force override and proceed with check-in? (Y/N): ");
+            if (!sc.nextLine().trim().equalsIgnoreCase("Y")) {
+                System.out.println("  Check-in suspended. Please wait for Housekeeping inspection.");
+                pressEnterToContinue();
+                return;
+            }
+        }
+
         // Display reservation for verification
         printReservationDetails(res, false);
         System.out.println();
@@ -513,7 +539,6 @@ public class FrontDeskModule {
 
         // Update statuses
         res.setStatus(Reservation.ReservationStatus.CHECKED_IN);
-        Room room = findRoom(res.getRoomNo());
         if (room != null) room.setStatus(Room.RoomStatus.OCCUPIED);
 
         Guest guest = findGuest(res.getGuestId());
@@ -537,7 +562,7 @@ public class FrontDeskModule {
     // ══════════════════════════════════════════════════════════════
     // 4. Check-Out Guest
     //    BST ADT: searchByConfirmation() → update status to CHECKED_OUT
-    //    Room status → UNDER_MAINTENANCE (dirty, ready for housekeeping)
+    //    Room status → DIRTY (ready for Housekeeping Module)
     // ══════════════════════════════════════════════════════════════
     private void checkOut() {
         printHeader("Check-Out Guest");
@@ -601,8 +626,39 @@ public class FrontDeskModule {
 
         // Update statuses
         res.setStatus(Reservation.ReservationStatus.CHECKED_OUT);
-        // Room becomes UNDER_MAINTENANCE (dirty) — ready for Housekeeping Module
-        if (room != null) room.setStatus(Room.RoomStatus.UNDER_MAINTENANCE);
+        // Room becomes DIRTY — ready for Housekeeping Module
+        if (room != null) room.setStatus(Room.RoomStatus.DIRTY);
+
+        // Auto-generate Cleaning Task in taskList & tasks.csv
+        String generatedTaskId = null;
+        if (taskList != null) {
+            int nextTaskNum = 1;
+            while (true) {
+                String candidateId = String.format("T%04d", nextTaskNum);
+                boolean exists = false;
+                for (int i = 0; i < taskList.size(); i++) {
+                    CleaningTask t = taskList.get(i);
+                    if (t != null && t.getTaskId() != null && t.getTaskId().equalsIgnoreCase(candidateId)) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) break;
+                nextTaskNum++;
+            }
+            generatedTaskId = String.format("T%04d", nextTaskNum);
+            String guestName = (guest != null) ? guest.getName() : res.getGuestId();
+            CleaningTask newTask = new CleaningTask(
+                    generatedTaskId,
+                    res.getRoomNo(),
+                    "Unassigned",
+                    CleaningTask.TaskPriority.HIGH,
+                    LocalDate.now(),
+                    "Checkout Cleaning for " + guestName
+            );
+            taskList.push(newTask);
+            DataStore.saveTasks(taskList);
+        }
 
         System.out.println();
         System.out.println("  ============================================");
@@ -611,10 +667,13 @@ public class FrontDeskModule {
         System.out.printf ("  Guest Name      : %s%n", guest != null ? guest.getName() : res.getGuestId());
         System.out.printf ("  Room            : %s%n", res.getRoomNo());
         System.out.printf ("  Total Billed    : RM %.2f%n", res.getTotalAmount());
-        System.out.printf ("  Room Status     : %s (needs cleaning)%n", Room.RoomStatus.UNDER_MAINTENANCE);
+        System.out.printf ("  Room Status     : %s (needs housekeeping)%n", Room.RoomStatus.DIRTY);
+        if (generatedTaskId != null) {
+            System.out.printf ("  Housekeeping    : Task %s created & queued%n", generatedTaskId);
+        }
         System.out.println("  ============================================");
         System.out.println("  Thank you for staying at TARUMT Resort!");
-        System.out.println("  Room has been flagged for Housekeeping.");
+        System.out.println("  Room status updated to DIRTY.");
         pressEnterToContinue();
     }
 
@@ -834,6 +893,9 @@ public class FrontDeskModule {
         DataStore.saveGuests(guestList);
         DataStore.saveReservations(reservationList);
         DataStore.saveRooms(roomList);
+        if (taskList != null) {
+            DataStore.saveTasks(taskList);
+        }
     }
 
     private void printHeader(String title) {

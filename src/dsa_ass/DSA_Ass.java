@@ -14,6 +14,7 @@ import dsa_ass.entity.CleaningTask;
 import dsa_ass.entity.Guest;
 import dsa_ass.entity.Reservation;
 import dsa_ass.entity.Room;
+import dsa_ass.entity.RoomStatusLog;
 import dsa_ass.module.FrontDeskModule;
 import dsa_ass.module.HousekeepingModule;
 import dsa_ass.module.WalkInRegistrationModule;
@@ -28,10 +29,13 @@ import java.util.Scanner;
 public class DSA_Ass {
 
     // ── Shared data stores (Queue / Stack / BST ADTs) ───────────
-    private static final Queue<Guest>                  guestList       = new Queue<Guest>();
-    private static final BinarySearchTree<Reservation> reservationList = new BinarySearchTree<Reservation>();
-    private static final Queue<Room>                   roomList        = new Queue<Room>();
-    private static final Stack<CleaningTask>           taskList        = new Stack<CleaningTask>();
+    private static final Queue<Guest>                  guestList          = new Queue<Guest>();
+    private static final BinarySearchTree<Reservation> reservationList    = new BinarySearchTree<Reservation>();
+    private static final Queue<Room>                   roomList           = new Queue<Room>();
+    private static final Stack<CleaningTask>           taskList           = new Stack<CleaningTask>();
+    private static final Queue<Guest>                  walkInQueue        = new Queue<Guest>();
+    private static final Queue<String>                 walkInResIds       = new Queue<String>();
+    private static final Stack<RoomStatusLog>          statusHistoryStack = new Stack<RoomStatusLog>();
 
     private static final Scanner sc = new Scanner(System.in);
 
@@ -100,15 +104,15 @@ public class DSA_Ass {
             System.out.println();
             switch (choice) {
                 case "1":
-                    new WalkInRegistrationModule(guestList, reservationList, roomList, sc).showMenu();
+                    new WalkInRegistrationModule(guestList, reservationList, roomList, walkInQueue, walkInResIds, sc).showMenu();
                     DataStore.saveAll(guestList, roomList, reservationList, taskList);
                     break;
                 case "2":
-                    new FrontDeskModule(guestList, reservationList, roomList, sc).showMenu();
+                    new FrontDeskModule(guestList, reservationList, roomList, taskList, sc).showMenu();
                     DataStore.saveAll(guestList, roomList, reservationList, taskList);
                     break;
                 case "3":
-                    new HousekeepingModule(taskList, roomList, sc).showMenu();
+                    new HousekeepingModule(taskList, roomList, reservationList, guestList, statusHistoryStack, sc).showMenu();
                     DataStore.saveAll(guestList, roomList, reservationList, taskList);
                     break;
                 case "4":
@@ -155,13 +159,15 @@ public class DSA_Ass {
         guestList.enqueue(new Guest("G002", "Priya Nair",   "P12345678",      "016-9876543", "priya@mail.com",  "Indian"));
         guestList.enqueue(new Guest("G003", "Lim Wei Xian", "010203-10-1234", "011-2233445", "limwx@mail.com",  "Malaysian"));
 
-        // Sample Cleaning Tasks  (T0001 – T0002)
+        seedSampleTasks();
+    }
+
+    private static void seedSampleTasks() {
         taskList.push(new CleaningTask("T0001", "R101", "Siti Aisyah",
                 CleaningTask.TaskPriority.MEDIUM, LocalDate.now(), "Routine daily clean"));
         taskList.push(new CleaningTask("T0002", "V001", "Rajendran",
                 CleaningTask.TaskPriority.HIGH, LocalDate.now(), "Post-checkout deep clean"));
-
-        HousekeepingModule.setTaskCounter(3);  // next: T0003  (T0001-T0002 seeded)
+        HousekeepingModule.setTaskCounter(3);
     }
 
     private static void pause() {

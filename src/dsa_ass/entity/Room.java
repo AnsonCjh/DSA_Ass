@@ -6,7 +6,7 @@ package dsa_ass.entity;
 public class Room {
 
     public enum RoomType  { SINGLE, STANDARD, DELUXE, SUITE, VILLA }
-    public enum RoomStatus { AVAILABLE, OCCUPIED, UNDER_MAINTENANCE }
+    public enum RoomStatus { AVAILABLE, OCCUPIED, DIRTY, CLEANING_IN_PROGRESS, INSPECTED, READY_FOR_CHECK_IN, UNDER_MAINTENANCE }
 
     private String roomNo;
     private RoomType roomType;
@@ -18,7 +18,7 @@ public class Room {
         this.roomNo        = roomNo;
         this.roomType      = roomType;
         this.pricePerNight = pricePerNight;
-        this.status        = RoomStatus.AVAILABLE;
+        this.status        = RoomStatus.READY_FOR_CHECK_IN;
         this.capacity      = capacity;
     }
 
@@ -33,7 +33,9 @@ public class Room {
     public void setStatus(RoomStatus status)            { this.status = status; }
     public void setPricePerNight(double pricePerNight)  { this.pricePerNight = pricePerNight; }
 
-    public boolean isAvailable() { return status == RoomStatus.AVAILABLE; }
+    public boolean isAvailable() {
+        return status == RoomStatus.READY_FOR_CHECK_IN || status == RoomStatus.AVAILABLE;
+    }
 
     @Override
     public String toString() {

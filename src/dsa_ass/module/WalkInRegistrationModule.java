@@ -59,13 +59,22 @@ public class WalkInRegistrationModule {
     public WalkInRegistrationModule(Queue<Guest>                 guestList,
                                     BinarySearchTree<Reservation> reservationList,
                                     Queue<Room>                  roomList,
+                                    Queue<Guest>                 walkInQueue,
+                                    Queue<String>                walkInResIds,
                                     Scanner sc) {
         this.guestList       = guestList;
         this.reservationList = reservationList;
         this.roomList        = roomList;
+        this.walkInQueue     = walkInQueue;
+        this.walkInResIds    = walkInResIds;
         this.sc              = sc;
-        this.walkInQueue     = new Queue<>();   // Queue ADT: walk-in waiting queue
-        this.walkInResIds    = new Queue<>();   // tracks walk-in reservation IDs
+    }
+
+    public WalkInRegistrationModule(Queue<Guest>                 guestList,
+                                    BinarySearchTree<Reservation> reservationList,
+                                    Queue<Room>                  roomList,
+                                    Scanner sc) {
+        this(guestList, reservationList, roomList, new Queue<Guest>(), new Queue<String>(), sc);
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -125,15 +134,20 @@ public class WalkInRegistrationModule {
         String nationality = readNonEmptyInput("  Nationality       : ");
         if (nationality.equals("0")) { cancelled(); return; }
 
-        // Generate unique guest ID only after all inputs are confirmed (prevent counter
-        // from advancing on every cancelled visit to this page)
-        int maxId = 0;
-        for (int i = 0; i < guestList.size(); i++) {
-            int num = parseTrailingNum(guestList.get(i).getGuestId());
-            if (num > maxId) maxId = num;
+        // Generate unique guest ID by finding the lowest available unused numeric ID
+        int nextIdNum = 1;
+        while (true) {
+            String candidateId = String.format("G%03d", nextIdNum);
+            boolean exists = false;
+            for (int i = 0; i < guestList.size(); i++) {
+                if (guestList.get(i).getGuestId().equalsIgnoreCase(candidateId)) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) break;
+            nextIdNum++;
         }
-        int nextIdNum = Math.max(maxId + 1, guestCounter);
-        guestCounter = nextIdNum + 1;
         String guestId = String.format("G%03d", nextIdNum);
 
         Guest g = new Guest(guestId, name, ic, phone, email, nationality);
@@ -271,169 +285,199 @@ public class WalkInRegistrationModule {
      * Returns true when the guest should be dequeue()d (booking done OR cancelled).
      */
     private boolean processRoomSelection(Guest guest) {
-        LocalDate checkIn  = null;
-        LocalDate checkOut = null;
-        Room.RoomType roomType = null;
-
-        // Initial date & room type collection
-        System.out.println("  Step 1: Select Room Type");
-        roomType = selectRoomType();
-        if (roomType == null) {
-            // Staff backed out — keep guest in queue
-            System.out.println("  Room selection cancelled. Guest remains in queue.");
-            return false;
-        }
-
-        System.out.println();
-        checkIn  = readDate("  Check-In Date  (DD/MM/YYYY): ");
-        checkOut = readDateAfter("  Check-Out Date (DD/MM/YYYY): ", checkIn);
-
-        // Availability check + retry loop
         while (true) {
-            // Find rooms of the selected type available for the given dates
-            Queue<Room> available = findAvailableRooms(roomType, checkIn, checkOut);
+            LocalDate checkIn  = null;
+            LocalDate checkOut = null;
+            Room.RoomType roomType = null;
 
-            if (!available.isEmpty()) {
-                // ── Success path ──────────────────────────────────────────
-                System.out.println();
-                System.out.printf("  Available %s Rooms for %s to %s:%n",
-                        roomType, checkIn.format(DATE_FMT), checkOut.format(DATE_FMT));
-                System.out.printf("  %-8s %-12s %-14s %-9s%n",
-                        "Room No", "Type", "Price/Night", "Capacity");
-                printDivider();
-                for (int i = 0; i < available.size(); i++) {
-                    Room r = available.get(i);
-                    System.out.printf("  %-8s %-12s RM%-12.2f %-9d%n",
-                            r.getRoomNo(), r.getRoomType(), r.getPricePerNight(), r.getCapacity());
-                }
-                printDivider();
+            // Initial date & room type collection
+            System.out.println("  Step 1: Select Room Type");
+            roomType = selectRoomType();
+            if (roomType == null) {
+                // Staff backed out — keep guest in queue
+                System.out.println("  Room selection cancelled. Guest remains in queue.");
+                return false;
+            }
 
-                System.out.print("  Enter Room Number to book: ");
-                String roomNo = sc.nextLine().trim().toUpperCase();
-                Room selectedRoom = null;
-                for (int i = 0; i < available.size(); i++) {
-                    if (available.get(i).getRoomNo().equalsIgnoreCase(roomNo)) {
-                        selectedRoom = available.get(i);
+            System.out.println();
+            checkIn = readDateOrBack("  Check-In Date  (DD/MM/YYYY, or 0 to reselect room type): ");
+            if (checkIn == null) {
+                System.out.println("  [↺] Returning to room type selection...\n");
+                continue;
+            }
+
+            checkOut = readDateAfterOrBack("  Check-Out Date (DD/MM/YYYY, or 0 to reselect room type): ", checkIn);
+            if (checkOut == null) {
+                System.out.println("  [↺] Returning to room type selection...\n");
+                continue;
+            }
+
+            // Availability check + retry loop
+            boolean reselectRoomType = false;
+            while (!reselectRoomType) {
+                // Find rooms of the selected type available for the given dates
+                Queue<Room> available = findAvailableRooms(roomType, checkIn, checkOut);
+
+                if (!available.isEmpty()) {
+                    // ── Success path ──────────────────────────────────────────
+                    System.out.println();
+                    System.out.printf("  Available %s Rooms for %s to %s:%n",
+                            roomType, checkIn.format(DATE_FMT), checkOut.format(DATE_FMT));
+                    System.out.printf("  %-8s %-12s %-14s %-9s%n",
+                            "Room No", "Type", "Price/Night", "Capacity");
+                    printDivider();
+                    for (int i = 0; i < available.size(); i++) {
+                        Room r = available.get(i);
+                        System.out.printf("  %-8s %-12s RM%-12.2f %-9d%n",
+                                r.getRoomNo(), r.getRoomType(), r.getPricePerNight(), r.getCapacity());
+                    }
+                    printDivider();
+
+                    System.out.print("  Enter Room Number to book (or 0 to reselect room type): ");
+                    String roomNo = sc.nextLine().trim().toUpperCase();
+                    if (roomNo.equals("0")) {
+                        System.out.println("  [↺] Returning to room type selection...\n");
+                        reselectRoomType = true;
                         break;
                     }
-                }
 
-                if (selectedRoom == null) {
-                    System.out.println("  [!] Room not found in available list. Please try again.");
-                    pressEnterToContinue();
-                    continue;
-                }
-
-                // Number of guests
-                System.out.printf("  Number of Guests (max %d): ", selectedRoom.getCapacity());
-                int numGuests;
-                try { numGuests = Integer.parseInt(sc.nextLine().trim()); }
-                catch (NumberFormatException e) { numGuests = 1; }
-                if (numGuests < 1) numGuests = 1;
-                if (numGuests > selectedRoom.getCapacity()) {
-                    System.out.printf("  [!] Room %s holds max %d guest(s). Adjusting to %d.%n",
-                            roomNo, selectedRoom.getCapacity(), selectedRoom.getCapacity());
-                    numGuests = selectedRoom.getCapacity();
-                }
-
-                // Calculate totals
-                long nights = java.time.temporal.ChronoUnit.DAYS.between(checkIn, checkOut);
-                double total = nights * selectedRoom.getPricePerNight();
-
-                // Generate reservation ID and 8-digit confirmation number
-                int maxId = 0;
-                for (int i = 0; i < reservationList.size(); i++) {
-                    int idNum = parseTrailingNum(reservationList.get(i).getReservationId());
-                    if (idNum > maxId) maxId = idNum;
-                }
-                int nextIdNum = Math.max(maxId + 1, resCounter);
-                resCounter = nextIdNum + 1;
-                String resId  = String.format("R%03d", nextIdNum);
-                String confNo = String.format("%08d", nextIdNum);  // 8-digit confirmation number
-
-                // Reservation confirmation page
-                System.out.println();
-                System.out.println("  ============================================");
-                System.out.println("         Reservation Confirmation");
-                System.out.println("  ============================================");
-                System.out.printf ("  Confirmation No: %s  *** KEEP THIS ***%n", confNo);
-                System.out.println("  --------------------------------------------");
-                System.out.printf ("  Reservation ID : %s%n", resId);
-                System.out.printf ("  Guest ID       : %s%n", guest.getGuestId());
-                System.out.printf ("  Guest Name     : %s%n", guest.getName());
-                System.out.printf ("  Room           : %s (%s)%n", selectedRoom.getRoomNo(), selectedRoom.getRoomType());
-                System.out.printf ("  Check-In       : %s%n", checkIn.format(DATE_FMT));
-                System.out.printf ("  Check-Out      : %s%n", checkOut.format(DATE_FMT));
-                System.out.printf ("  Nights         : %d%n", nights);
-                System.out.printf ("  No. of Guests  : %d%n", numGuests);
-                System.out.printf ("  Price/Night    : RM %.2f%n", selectedRoom.getPricePerNight());
-                System.out.printf ("  Total Amount   : RM %.2f%n", total);
-                System.out.println("  ============================================");
-                System.out.println("  Present the Confirmation No. at the Front Desk");
-                System.out.println("  for Check-In, Check-Out, or Enquiries.");
-                System.out.println("  ============================================");
-                System.out.println();
-                System.out.print("  Confirm reservation? (Y/N): ");
-                String confirm = sc.nextLine().trim();
-                if (!confirm.equalsIgnoreCase("Y")) {
-                    System.out.println("  Reservation not confirmed. Guest remains in queue.");
-                    return false;
-                }
-
-                // Create and save reservation
-                Reservation res = new Reservation(resId, guest.getGuestId(),
-                        selectedRoom.getRoomNo(), checkIn, checkOut, numGuests, total);
-                res.setStatus(Reservation.ReservationStatus.CONFIRMED);
-                res.setConfirmationNo(confNo);   // attach 8-digit confirmation number
-                reservationList.add(res);
-                selectedRoom.setStatus(Room.RoomStatus.OCCUPIED);
-
-                // Track this reservation as a walk-in reservation
-                walkInResIds.enqueue(resId);
-
-                autoSave();
-
-                System.out.println();
-                System.out.println("  [✓] Reservation created successfully!");
-                System.out.printf ("  Reservation ID %s saved to reservations.csv%n", resId);
-                return true;   // trigger dequeue()
-
-            } else {
-                // ── Unavailable path ──────────────────────────────────────
-                System.out.println();
-                System.out.println("  ============================================");
-                System.out.printf ("  [!] No %s rooms available for%n", roomType);
-                System.out.printf ("      %s to %s%n",
-                        checkIn.format(DATE_FMT), checkOut.format(DATE_FMT));
-                System.out.println("  ============================================");
-                System.out.println();
-                System.out.println("  Options:");
-                System.out.println("  1. Choose Another Room Type");
-                System.out.println("  2. Change Booking Dates");
-                System.out.println("  3. Cancel Booking (remove guest from queue)");
-                printDivider();
-                System.out.print("  Enter your choice: ");
-                String fallback = sc.nextLine().trim();
-                System.out.println();
-
-                switch (fallback) {
-                    case "1":
-                        Room.RoomType newType = selectRoomType();
-                        if (newType != null) {
-                            roomType = newType;
+                    Room selectedRoom = null;
+                    for (int i = 0; i < available.size(); i++) {
+                        if (available.get(i).getRoomNo().equalsIgnoreCase(roomNo)) {
+                            selectedRoom = available.get(i);
+                            break;
                         }
-                        break;
-                    case "2":
-                        checkIn  = readDate("  New Check-In Date  (DD/MM/YYYY): ");
-                        checkOut = readDateAfter("  New Check-Out Date (DD/MM/YYYY): ", checkIn);
-                        break;
-                    case "3":
-                        System.out.println("  Booking cancelled. Guest will be dequeue()d from walk-in queue.");
-                        return true;  // trigger dequeue() — guest cancelled
-                    default:
-                        System.out.println("  [!] Invalid option. Please try again.");
+                    }
+
+                    if (selectedRoom == null) {
+                        System.out.println("  [!] Room not found in available list. Please try again.");
+                        pressEnterToContinue();
+                        continue;
+                    }
+
+                    // Number of guests
+                    System.out.printf("  Number of Guests (max %d): ", selectedRoom.getCapacity());
+                    int numGuests;
+                    try { numGuests = Integer.parseInt(sc.nextLine().trim()); }
+                    catch (NumberFormatException e) { numGuests = 1; }
+                    if (numGuests < 1) numGuests = 1;
+                    if (numGuests > selectedRoom.getCapacity()) {
+                        System.out.printf("  [!] Room %s holds max %d guest(s). Adjusting to %d.%n",
+                                roomNo, selectedRoom.getCapacity(), selectedRoom.getCapacity());
+                        numGuests = selectedRoom.getCapacity();
+                    }
+
+                    // Calculate totals
+                    long nights = java.time.temporal.ChronoUnit.DAYS.between(checkIn, checkOut);
+                    double total = nights * selectedRoom.getPricePerNight();
+
+                    // Generate reservation ID and 8-digit confirmation number by finding lowest unused ID
+                    int nextIdNum = 1;
+                    while (true) {
+                        String candidateId = String.format("R%03d", nextIdNum);
+                        boolean exists = false;
+                        for (int i = 0; i < reservationList.size(); i++) {
+                            if (reservationList.get(i).getReservationId().equalsIgnoreCase(candidateId)) {
+                                exists = true;
+                                break;
+                            }
+                        }
+                        if (!exists) break;
+                        nextIdNum++;
+                    }
+                    String resId  = String.format("R%03d", nextIdNum);
+                    String confNo = String.format("%08d", nextIdNum);  // 8-digit confirmation number
+
+                    // Reservation confirmation page
+                    System.out.println();
+                    System.out.println("  ============================================");
+                    System.out.println("         Reservation Confirmation");
+                    System.out.println("  ============================================");
+                    System.out.printf ("  Confirmation No: %s  *** KEEP THIS ***%n", confNo);
+                    System.out.println("  --------------------------------------------");
+                    System.out.printf ("  Reservation ID : %s%n", resId);
+                    System.out.printf ("  Guest ID       : %s%n", guest.getGuestId());
+                    System.out.printf ("  Guest Name     : %s%n", guest.getName());
+                    System.out.printf ("  Room           : %s (%s)%n", selectedRoom.getRoomNo(), selectedRoom.getRoomType());
+                    System.out.printf ("  Check-In       : %s%n", checkIn.format(DATE_FMT));
+                    System.out.printf ("  Check-Out      : %s%n", checkOut.format(DATE_FMT));
+                    System.out.printf ("  Nights         : %d%n", nights);
+                    System.out.printf ("  No. of Guests  : %d%n", numGuests);
+                    System.out.printf ("  Price/Night    : RM %.2f%n", selectedRoom.getPricePerNight());
+                    System.out.printf ("  Total Amount   : RM %.2f%n", total);
+                    System.out.println("  ============================================");
+                    System.out.println("  Present the Confirmation No. at the Front Desk");
+                    System.out.println("  for Check-In, Check-Out, or Enquiries.");
+                    System.out.println("  ============================================");
+                    System.out.println();
+                    System.out.print("  Confirm reservation? (Y/N): ");
+                    String confirm = sc.nextLine().trim();
+                    if (!confirm.equalsIgnoreCase("Y")) {
+                        System.out.println("  Reservation not confirmed. Guest remains in queue.");
+                        return false;
+                    }
+
+                    // Create and save reservation
+                    Reservation res = new Reservation(resId, guest.getGuestId(),
+                            selectedRoom.getRoomNo(), checkIn, checkOut, numGuests, total);
+                    res.setStatus(Reservation.ReservationStatus.CONFIRMED);
+                    res.setConfirmationNo(confNo);   // attach 8-digit confirmation number
+                    reservationList.add(res);
+                    selectedRoom.setStatus(Room.RoomStatus.OCCUPIED);
+
+                    // Track this reservation as a walk-in reservation
+                    walkInResIds.enqueue(resId);
+
+                    autoSave();
+
+                    System.out.println();
+                    System.out.println("  [✓] Reservation created successfully!");
+                    System.out.printf ("  Reservation ID %s saved to reservations.csv%n", resId);
+                    return true;   // trigger dequeue()
+
+                } else {
+                    // ── Unavailable path ──────────────────────────────────────
+                    System.out.println();
+                    System.out.println("  ============================================");
+                    System.out.printf ("  [!] No %s rooms available for%n", roomType);
+                    System.out.printf ("      %s to %s%n",
+                            checkIn.format(DATE_FMT), checkOut.format(DATE_FMT));
+                    System.out.println("  ============================================");
+                    System.out.println();
+                    System.out.println("  Options:");
+                    System.out.println("  1. Choose Another Room Type");
+                    System.out.println("  2. Change Booking Dates");
+                    System.out.println("  3. Cancel Booking (remove guest from queue)");
+                    printDivider();
+                    System.out.print("  Enter your choice: ");
+                    String fallback = sc.nextLine().trim();
+                    System.out.println();
+
+                    switch (fallback) {
+                        case "1":
+                            reselectRoomType = true;
+                            break;
+                        case "2":
+                            LocalDate newIn = readDateOrBack("  New Check-In Date  (DD/MM/YYYY, or 0 to reselect room type): ");
+                            if (newIn == null) {
+                                reselectRoomType = true;
+                                break;
+                            }
+                            LocalDate newOut = readDateAfterOrBack("  New Check-Out Date (DD/MM/YYYY, or 0 to reselect room type): ", newIn);
+                            if (newOut == null) {
+                                reselectRoomType = true;
+                                break;
+                            }
+                            checkIn  = newIn;
+                            checkOut = newOut;
+                            continue;
+                        case "3":
+                            System.out.println("  Booking cancelled. Guest will be dequeue()d from walk-in queue.");
+                            return true;  // trigger dequeue() — guest cancelled
+                        default:
+                            System.out.println("  [!] Invalid option. Please try again.");
+                    }
                 }
-                // Loop back and check availability again
             }
         }
     }
@@ -686,6 +730,33 @@ public class WalkInRegistrationModule {
             if (d.isAfter(checkIn)) return d;
             System.out.println("  [!] Check-out date must be after check-in date ("
                     + checkIn.format(DATE_FMT) + "). Please try again.");
+        }
+    }
+
+    /** Reads date, returns null if user enters "0" to cancel/reselect. */
+    private LocalDate readDateOrBack(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            String input = sc.nextLine().trim();
+            if (input.equals("0")) {
+                return null;
+            }
+            try {
+                return LocalDate.parse(input, DATE_FMT);
+            } catch (DateTimeParseException e) {
+                System.out.println("  [!] Invalid date format. Use DD/MM/YYYY (or 0 to reselect room type).");
+            }
+        }
+    }
+
+    /** Reads check-out date strictly after checkIn, returns null if user enters "0". */
+    private LocalDate readDateAfterOrBack(String prompt, LocalDate checkIn) {
+        while (true) {
+            LocalDate d = readDateOrBack(prompt);
+            if (d == null) return null;
+            if (d.isAfter(checkIn)) return d;
+            System.out.println("  [!] Check-out date must be after check-in date ("
+                    + checkIn.format(DATE_FMT) + "). Please try again (or 0 to reselect room type).");
         }
     }
 
