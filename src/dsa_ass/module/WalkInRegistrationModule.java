@@ -115,7 +115,6 @@ public class WalkInRegistrationModule {
     // ══════════════════════════════════════════════════════════════
     private void registerWalkIn() {
         printHeader("Register Walk-In Guest");
-        System.out.println("  Queue Operation: enqueue() — adds guest to back of walk-in queue");
         System.out.println("  (Enter 0 at any field to cancel)");
         System.out.println();
 
@@ -134,20 +133,16 @@ public class WalkInRegistrationModule {
         String nationality = readNonEmptyInput("  Nationality       : ");
         if (nationality.equals("0")) { cancelled(); return; }
 
-        // Generate unique guest ID by finding the lowest available unused numeric ID
-        int nextIdNum = 1;
-        while (true) {
-            String candidateId = String.format("G%03d", nextIdNum);
-            boolean exists = false;
-            for (int i = 0; i < guestList.size(); i++) {
-                if (guestList.get(i).getGuestId().equalsIgnoreCase(candidateId)) {
-                    exists = true;
-                    break;
-                }
+        // Generate unique guest ID: strictly increment beyond the highest existing guest ID
+        int maxIdNum = 0;
+        for (int i = 0; i < guestList.size(); i++) {
+            int num = parseTrailingNum(guestList.get(i).getGuestId());
+            if (num > maxIdNum) {
+                maxIdNum = num;
             }
-            if (!exists) break;
-            nextIdNum++;
         }
+        int nextIdNum = Math.max(maxIdNum + 1, guestCounter);
+        guestCounter = nextIdNum + 1;
         String guestId = String.format("G%03d", nextIdNum);
 
         Guest g = new Guest(guestId, name, ic, phone, email, nationality);
@@ -175,13 +170,12 @@ public class WalkInRegistrationModule {
         System.out.printf ("  Nationality    : %s%n", nationality);
         System.out.println("  ============================================");
         System.out.println();
-        System.out.println("  [Queue] Guest added via enqueue() to walk-in queue.");
-        System.out.printf ("  [Queue] Current queue position : #%d%n", queuePosition);
-        System.out.printf ("  [Queue] Guests waiting         : %d%n", walkInQueue.size());
+        System.out.printf ("  Current queue position : #%d%n", queuePosition);
+        System.out.printf ("  Guests waiting         : %d%n", walkInQueue.size());
         if (queuePosition == 1) {
-            System.out.println("  [Queue] This guest is at the FRONT and will be served next.");
+            System.out.println("  This guest is at the FRONT and will be served next.");
         } else {
-            System.out.printf ("  [Queue] %d guest(s) ahead in queue.%n", queuePosition - 1);
+            System.out.printf ("  %d guest(s) ahead in queue.%n", queuePosition - 1);
         }
         pressEnterToContinue();
     }
@@ -191,14 +185,13 @@ public class WalkInRegistrationModule {
     //    Queue ADT: peek() (front indicator) + traversal via get(i)
     // ══════════════════════════════════════════════════════════════
     private void viewWalkInQueue() {
+        syncWalkInQueue();
         printHeader("View Walk-In Queue");
-        System.out.println("  Queue Operations: peek() — identify front guest");
-        System.out.println("                    traversal — display all queue positions");
         System.out.println();
 
         // isEmpty() check
         if (walkInQueue.isEmpty()) {
-            System.out.println("  [Queue] isEmpty() = true — No guests currently waiting.");
+            System.out.println("  No guests currently waiting.");
             System.out.println();
             System.out.println("  The walk-in queue is empty. Register a guest first (Option 1).");
             pressEnterToContinue();
@@ -209,7 +202,7 @@ public class WalkInRegistrationModule {
         Guest frontGuest = walkInQueue.peek();
 
         System.out.printf("  Total Guests Waiting : %d%n", walkInQueue.size());
-        System.out.printf("  Next to be Served    : %s (%s)  [peek()]%n",
+        System.out.printf("  Next to be Served    : %s (%s)%n",
                 frontGuest.getName(), frontGuest.getGuestId());
         System.out.println();
         System.out.printf("  %-5s %-10s %-22s %-18s%n",
@@ -225,7 +218,6 @@ public class WalkInRegistrationModule {
         }
         printDivider();
         System.out.println();
-        System.out.println("  Queue order: FIFO — first registered = first served.");
         pressEnterToContinue();
     }
 
@@ -234,14 +226,13 @@ public class WalkInRegistrationModule {
     //    Queue ADT: peek() — read front, dequeue() — remove after processing
     // ══════════════════════════════════════════════════════════════
     private void processNextGuest() {
+        syncWalkInQueue();
         printHeader("Process Next Walk-In Guest");
-        System.out.println("  Queue Operations: peek() — read front guest (FIFO)");
-        System.out.println("                    dequeue() — remove after reservation completed");
         System.out.println();
 
         // isEmpty() guard
         if (walkInQueue.isEmpty()) {
-            System.out.println("  [Queue] isEmpty() = true — No guests in queue to process.");
+            System.out.println("  No guests in queue to process.");
             System.out.println();
             System.out.println("  Register a walk-in guest first (Option 1).");
             pressEnterToContinue();
@@ -251,8 +242,6 @@ public class WalkInRegistrationModule {
         // peek() — get front guest WITHOUT removing (dequeue happens only after processing)
         Guest guest = walkInQueue.peek();
 
-        System.out.println("  [Queue] peek() — Guest at front of queue:");
-        System.out.println();
         System.out.println("  ============================================");
         System.out.println("             Guest Information");
         System.out.println("  ============================================");
@@ -273,8 +262,8 @@ public class WalkInRegistrationModule {
             // Booking was either completed successfully or cancelled — remove from queue
             walkInQueue.dequeue();
             System.out.println();
-            System.out.println("  [Queue] dequeue() — Guest removed from walk-in queue.");
-            System.out.printf ("  [Queue] Guests remaining in queue: %d%n", walkInQueue.size());
+            System.out.println("  Guest removed from walk-in queue.");
+            System.out.printf ("  Guests remaining in queue: %d%n", walkInQueue.size());
         }
         // If bookingComplete is false, guest stays in queue (they chose to retry later - not used in this flow)
         pressEnterToContinue();
@@ -371,20 +360,16 @@ public class WalkInRegistrationModule {
                     long nights = java.time.temporal.ChronoUnit.DAYS.between(checkIn, checkOut);
                     double total = nights * selectedRoom.getPricePerNight();
 
-                    // Generate reservation ID and 8-digit confirmation number by finding lowest unused ID
-                    int nextIdNum = 1;
-                    while (true) {
-                        String candidateId = String.format("R%03d", nextIdNum);
-                        boolean exists = false;
-                        for (int i = 0; i < reservationList.size(); i++) {
-                            if (reservationList.get(i).getReservationId().equalsIgnoreCase(candidateId)) {
-                                exists = true;
-                                break;
-                            }
+                    // Generate reservation ID and 8-digit confirmation number (increments beyond highest existing ID)
+                    int maxIdNum = 0;
+                    for (int i = 0; i < reservationList.size(); i++) {
+                        int num = parseTrailingNum(reservationList.get(i).getReservationId());
+                        if (num > maxIdNum) {
+                            maxIdNum = num;
                         }
-                        if (!exists) break;
-                        nextIdNum++;
                     }
+                    int nextIdNum = Math.max(maxIdNum + 1, resCounter);
+                    resCounter = nextIdNum + 1;
                     String resId  = String.format("R%03d", nextIdNum);
                     String confNo = String.format("%08d", nextIdNum);  // 8-digit confirmation number
 
@@ -472,7 +457,7 @@ public class WalkInRegistrationModule {
                             checkOut = newOut;
                             continue;
                         case "3":
-                            System.out.println("  Booking cancelled. Guest will be dequeue()d from walk-in queue.");
+                            System.out.println("  Booking cancelled. Guest removed from walk-in queue.");
                             return true;  // trigger dequeue() — guest cancelled
                         default:
                             System.out.println("  [!] Invalid option. Please try again.");
@@ -785,7 +770,12 @@ public class WalkInRegistrationModule {
         ConsoleUtils.clearScreen();
         System.out.println();
         System.out.println("  ============================================");
-        System.out.printf ("        %s%n", title);
+        int totalWidth = 44;
+        int pad = Math.max(0, (totalWidth - title.length()) / 2);
+        StringBuilder sb = new StringBuilder("  ");
+        for (int i = 0; i < pad; i++) sb.append(' ');
+        sb.append(title);
+        System.out.println(sb.toString());
         System.out.println("  ============================================");
     }
 
@@ -816,6 +806,32 @@ public class WalkInRegistrationModule {
             return Integer.parseInt(id.substring(i));
         } catch (NumberFormatException e) {
             return 0;
+        }
+    }
+
+    /**
+     * Synchronizes walkInQueue with guestList by removing any waiting guests
+     * that no longer exist in guestList (e.g. deleted via Front Desk guest management).
+     */
+    private void syncWalkInQueue() {
+        if (walkInQueue == null || guestList == null) return;
+        for (int i = walkInQueue.size() - 1; i >= 0; i--) {
+            Guest qg = walkInQueue.get(i);
+            if (qg == null) {
+                walkInQueue.remove(i);
+                continue;
+            }
+            boolean exists = false;
+            for (int j = 0; j < guestList.size(); j++) {
+                Guest gl = guestList.get(j);
+                if (gl != null && gl.getGuestId().equalsIgnoreCase(qg.getGuestId())) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                walkInQueue.remove(i);
+            }
         }
     }
 }

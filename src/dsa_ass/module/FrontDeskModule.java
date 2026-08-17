@@ -38,6 +38,7 @@ public class FrontDeskModule {
     private final BinarySearchTree<Reservation> reservationList;
     private final Queue<Room>                  roomList;
     private final Stack<CleaningTask>           taskList;
+    private final Queue<Guest>                 walkInQueue;
     private final Scanner sc;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -46,19 +47,29 @@ public class FrontDeskModule {
                            BinarySearchTree<Reservation> reservationList,
                            Queue<Room>                  roomList,
                            Stack<CleaningTask>           taskList,
+                           Queue<Guest>                 walkInQueue,
                            Scanner sc) {
         this.guestList       = guestList;
         this.reservationList = reservationList;
         this.roomList        = roomList;
         this.taskList        = taskList;
+        this.walkInQueue     = walkInQueue;
         this.sc              = sc;
     }
 
     public FrontDeskModule(Queue<Guest>                 guestList,
                            BinarySearchTree<Reservation> reservationList,
                            Queue<Room>                  roomList,
+                           Stack<CleaningTask>           taskList,
                            Scanner sc) {
-        this(guestList, reservationList, roomList, null, sc);
+        this(guestList, reservationList, roomList, taskList, null, sc);
+    }
+
+    public FrontDeskModule(Queue<Guest>                 guestList,
+                           BinarySearchTree<Reservation> reservationList,
+                           Queue<Room>                  roomList,
+                           Scanner sc) {
+        this(guestList, reservationList, roomList, null, null, sc);
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -101,28 +112,20 @@ public class FrontDeskModule {
     // ══════════════════════════════════════════════════════════════
     private void searchByConfirmation() {
         printHeader("Search by Confirmation Number");
-        System.out.println("  ADT: Binary Search Tree (BST)");
-        System.out.println("  Operation: In-order BST traversal search");
-        System.out.println();
 
         String confNo = readConfirmationNumber();
         if (confNo == null) { pressEnterToContinue(); return; }
 
         System.out.println();
-        System.out.println("  [BST] Traversing tree nodes in-order...");
         Reservation res = reservationList.searchByConfirmation(confNo);
 
         if (res == null) {
-            System.out.println("  [BST] Traversal complete. No match found.");
-            System.out.println();
             System.out.println("  [!] Confirmation number '" + confNo + "' not found.");
             System.out.println("      Please verify the number and try again.");
             pressEnterToContinue();
             return;
         }
 
-        System.out.println("  [BST] Match found at BST node.");
-        System.out.println();
         printReservationDetails(res, true);
         pressEnterToContinue();
     }
@@ -202,7 +205,6 @@ public class FrontDeskModule {
         if (res != null) {
             Guest g = findGuest(res.getGuestId());
             if (g != null) {
-                System.out.println("  [Found via Confirmation No. BST Search]");
                 viewGuestDetails(g);
                 return;
             }
@@ -461,6 +463,17 @@ public class FrontDeskModule {
             }
             if (targetIdx != -1) {
                 guestList.remove(targetIdx);
+
+                // Also remove from walk-in waiting queue if present
+                if (walkInQueue != null) {
+                    for (int i = walkInQueue.size() - 1; i >= 0; i--) {
+                        Guest qg = walkInQueue.get(i);
+                        if (qg != null && qg.getGuestId().equalsIgnoreCase(targetGuest.getGuestId())) {
+                            walkInQueue.remove(i);
+                        }
+                    }
+                }
+
                 autoSave();
                 System.out.println();
                 System.out.printf("  [✓] Guest %s (%s) has been successfully deleted.%n",
@@ -481,14 +494,11 @@ public class FrontDeskModule {
     // ══════════════════════════════════════════════════════════════
     private void checkIn() {
         printHeader("Check-In Guest");
-        System.out.println("  ADT: BST in-order traversal search by confirmation number");
-        System.out.println();
 
         String confNo = readConfirmationNumber();
         if (confNo == null) { pressEnterToContinue(); return; }
 
         System.out.println();
-        System.out.println("  [BST] Searching BST by confirmation number...");
         Reservation res = reservationList.searchByConfirmation(confNo);
 
         if (res == null) {
@@ -496,8 +506,6 @@ public class FrontDeskModule {
             pressEnterToContinue();
             return;
         }
-        System.out.println("  [BST] Reservation found.");
-        System.out.println();
 
         // Status guard
         if (res.getStatus() == Reservation.ReservationStatus.CHECKED_IN) {
@@ -513,15 +521,17 @@ public class FrontDeskModule {
             return;
         }
 
-        // Room readiness guard
+        // Room readiness guard (warn only if room is dirty, cleaning in progress, or under maintenance)
         Room room = findRoom(res.getRoomNo());
-        if (room != null && !room.isAvailable()) {
+        if (room != null && (room.getStatus() == Room.RoomStatus.DIRTY
+                || room.getStatus() == Room.RoomStatus.CLEANING_IN_PROGRESS
+                || room.getStatus() == Room.RoomStatus.UNDER_MAINTENANCE)) {
             System.out.println();
             System.out.printf("  [!] Notice: Room %s is currently '%s'.%n", room.getRoomNo(), room.getStatus());
-            System.out.println("      Room must be READY_FOR_CHECK_IN before guest check-in.");
+            System.out.println("      Room is not ready for guest check-in.");
             System.out.print("      Force override and proceed with check-in? (Y/N): ");
             if (!sc.nextLine().trim().equalsIgnoreCase("Y")) {
-                System.out.println("  Check-in suspended. Please wait for Housekeeping inspection.");
+                System.out.println("  Check-in suspended. Please wait for Housekeeping.");
                 pressEnterToContinue();
                 return;
             }
@@ -566,14 +576,11 @@ public class FrontDeskModule {
     // ══════════════════════════════════════════════════════════════
     private void checkOut() {
         printHeader("Check-Out Guest");
-        System.out.println("  ADT: BST in-order traversal search by confirmation number");
-        System.out.println();
 
         String confNo = readConfirmationNumber();
         if (confNo == null) { pressEnterToContinue(); return; }
 
         System.out.println();
-        System.out.println("  [BST] Searching BST by confirmation number...");
         Reservation res = reservationList.searchByConfirmation(confNo);
 
         if (res == null) {
@@ -581,8 +588,6 @@ public class FrontDeskModule {
             pressEnterToContinue();
             return;
         }
-        System.out.println("  [BST] Reservation found.");
-        System.out.println();
 
         // Status guard
         if (res.getStatus() != Reservation.ReservationStatus.CHECKED_IN) {
@@ -632,21 +637,7 @@ public class FrontDeskModule {
         // Auto-generate Cleaning Task in taskList & tasks.csv
         String generatedTaskId = null;
         if (taskList != null) {
-            int nextTaskNum = 1;
-            while (true) {
-                String candidateId = String.format("T%04d", nextTaskNum);
-                boolean exists = false;
-                for (int i = 0; i < taskList.size(); i++) {
-                    CleaningTask t = taskList.get(i);
-                    if (t != null && t.getTaskId() != null && t.getTaskId().equalsIgnoreCase(candidateId)) {
-                        exists = true;
-                        break;
-                    }
-                }
-                if (!exists) break;
-                nextTaskNum++;
-            }
-            generatedTaskId = String.format("T%04d", nextTaskNum);
+            generatedTaskId = HousekeepingModule.generateTaskId(taskList);
             String guestName = (guest != null) ? guest.getName() : res.getGuestId();
             CleaningTask newTask = new CleaningTask(
                     generatedTaskId,
@@ -771,9 +762,6 @@ public class FrontDeskModule {
     // ══════════════════════════════════════════════════════════════
     private void viewCurrentGuests() {
         printHeader("View Current Guests");
-        System.out.println("  ADT: BST in-order traversal — displays all CHECKED_IN guests");
-        System.out.println();
-        System.out.println("  [BST] Performing in-order traversal of reservation BST...");
         System.out.println();
         System.out.printf("  %-10s %-22s %-8s %-12s %-12s %-12s%n",
                 "Conf No", "Guest Name", "Room", "Check-In", "Check-Out", "Status");
@@ -902,7 +890,12 @@ public class FrontDeskModule {
         ConsoleUtils.clearScreen();
         System.out.println();
         System.out.println("  ============================================");
-        System.out.printf ("              %s%n", title);
+        int totalWidth = 44;
+        int pad = Math.max(0, (totalWidth - title.length()) / 2);
+        StringBuilder sb = new StringBuilder("  ");
+        for (int i = 0; i < pad; i++) sb.append(' ');
+        sb.append(title);
+        System.out.println(sb.toString());
         System.out.println("  ============================================");
     }
 

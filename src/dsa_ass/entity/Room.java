@@ -18,7 +18,7 @@ public class Room {
         this.roomNo        = roomNo;
         this.roomType      = roomType;
         this.pricePerNight = pricePerNight;
-        this.status        = RoomStatus.READY_FOR_CHECK_IN;
+        this.status        = RoomStatus.AVAILABLE;
         this.capacity      = capacity;
     }
 

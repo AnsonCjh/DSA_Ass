@@ -19,7 +19,7 @@ import java.util.Scanner;
  *
  * Implements:
  *   1. Cleaning Task Management (Stack ADT - LIFO)
- *   2. Room Inspection & Status Lifecycle (DIRTY -> CLEANING_IN_PROGRESS -> INSPECTED -> READY_FOR_CHECK_IN)
+ *   2. Room Inspection & Status Lifecycle (DIRTY -> CLEANING_IN_PROGRESS -> INSPECTED -> AVAILABLE)
  *      - Linear ADT: Stack<RoomStatusLog> for Undo and Status History
  *   3. Task Records (Filtered query views)
  */
@@ -133,21 +133,7 @@ public class HousekeepingModule {
     // ── 1.1 Add Cleaning Task ─────────────────────────────────────
     private void addCleaningTask() {
         printHeader("Add Cleaning Task");
-        int nextIdNum = 1;
-        while (true) {
-            String candidateId = String.format("T%04d", nextIdNum);
-            boolean exists = false;
-            for (int i = 0; i < taskList.size(); i++) {
-                CleaningTask t = taskList.get(i);
-                if (t != null && t.getTaskId() != null && t.getTaskId().equalsIgnoreCase(candidateId)) {
-                    exists = true;
-                    break;
-                }
-            }
-            if (!exists) break;
-            nextIdNum++;
-        }
-        String taskId = String.format("T%04d", nextIdNum);
+        String taskId = generateTaskId(taskList);
         System.out.println("  Task ID assigned : " + taskId);
         System.out.println();
 
@@ -446,18 +432,18 @@ public class HousekeepingModule {
             System.out.println("  [✓] Room status updated to INSPECTED.");
             System.out.println("  [Linear ADT] Status logged to history stack.");
 
-            // Offer next step: READY_FOR_CHECK_IN
+            // Offer next step: AVAILABLE
             System.out.println();
-            System.out.print("  Mark room as READY_FOR_CHECK_IN for Front Desk now? (Y/N): ");
+            System.out.print("  Mark room as AVAILABLE for Front Desk now? (Y/N): ");
             if (sc.nextLine().trim().equalsIgnoreCase("Y")) {
-                matchedRoom.setStatus(Room.RoomStatus.READY_FOR_CHECK_IN);
-                logRoomStatus(matchedRoom.getRoomNo(), Room.RoomStatus.INSPECTED, Room.RoomStatus.READY_FOR_CHECK_IN,
-                        "Supervisor confirmed ready for check-in");
+                matchedRoom.setStatus(Room.RoomStatus.AVAILABLE);
+                logRoomStatus(matchedRoom.getRoomNo(), Room.RoomStatus.INSPECTED, Room.RoomStatus.AVAILABLE,
+                        "Supervisor confirmed room is available");
 
                 System.out.println();
                 System.out.printf ("  Room %s%n", matchedRoom.getRoomNo());
-                System.out.println("  INSPECTED → READY_FOR_CHECK_IN");
-                System.out.println("  [✓] Front desk can now see: " + matchedRoom.getRoomNo() + " | READY_FOR_CHECK_IN");
+                System.out.println("  INSPECTED → AVAILABLE");
+                System.out.println("  [✓] Front desk can now see: " + matchedRoom.getRoomNo() + " | AVAILABLE");
             }
         } else {
             // Inspection failed
@@ -481,21 +467,7 @@ public class HousekeepingModule {
 
                 System.out.print("  Auto-create new re-cleaning task? (Y/N): ");
                 if (sc.nextLine().trim().equalsIgnoreCase("Y")) {
-                    int nextIdNum = 1;
-                    while (true) {
-                        String candidateId = String.format("T%04d", nextIdNum);
-                        boolean exists = false;
-                        for (int i = 0; i < taskList.size(); i++) {
-                            CleaningTask t = taskList.get(i);
-                            if (t != null && t.getTaskId() != null && t.getTaskId().equalsIgnoreCase(candidateId)) {
-                                exists = true;
-                                break;
-                            }
-                        }
-                        if (!exists) break;
-                        nextIdNum++;
-                    }
-                    String taskId = String.format("T%04d", nextIdNum);
+                    String taskId = generateTaskId(taskList);
                     CleaningTask newTask = new CleaningTask(
                             taskId, matchedRoom.getRoomNo(),
                             matchedTask != null ? matchedTask.getAssignedStaff() : "Unassigned",
@@ -546,7 +518,7 @@ public class HousekeepingModule {
         System.out.println("  1. DIRTY");
         System.out.println("  2. CLEANING_IN_PROGRESS");
         System.out.println("  3. INSPECTED");
-        System.out.println("  4. READY_FOR_CHECK_IN");
+        System.out.println("  4. AVAILABLE");
         System.out.println("  0. Cancel");
         printDivider();
         System.out.print("  Enter choice (1 - 4): ");
@@ -557,7 +529,7 @@ public class HousekeepingModule {
             case "1": newStatus = Room.RoomStatus.DIRTY;                break;
             case "2": newStatus = Room.RoomStatus.CLEANING_IN_PROGRESS; break;
             case "3": newStatus = Room.RoomStatus.INSPECTED;            break;
-            case "4": newStatus = Room.RoomStatus.READY_FOR_CHECK_IN;   break;
+            case "4": newStatus = Room.RoomStatus.AVAILABLE;            break;
             case "0":
                 System.out.println("  Update cancelled.");
                 pressEnterToContinue();
@@ -587,21 +559,7 @@ public class HousekeepingModule {
         if (newStatus == Room.RoomStatus.DIRTY) {
             System.out.print("\n  Auto-create cleaning task for this dirty room? (Y/N): ");
             if (sc.nextLine().trim().equalsIgnoreCase("Y")) {
-                int nextIdNum = 1;
-                while (true) {
-                    String candidateId = String.format("T%04d", nextIdNum);
-                    boolean exists = false;
-                    for (int i = 0; i < taskList.size(); i++) {
-                        CleaningTask t = taskList.get(i);
-                        if (t != null && t.getTaskId() != null && t.getTaskId().equalsIgnoreCase(candidateId)) {
-                            exists = true;
-                            break;
-                        }
-                    }
-                    if (!exists) break;
-                    nextIdNum++;
-                }
-                String taskId = String.format("T%04d", nextIdNum);
+                String taskId = generateTaskId(taskList);
                 CleaningTask newTask = new CleaningTask(
                         taskId, room.getRoomNo(), "Unassigned",
                         CleaningTask.TaskPriority.HIGH, LocalDate.now(),
@@ -631,7 +589,7 @@ public class HousekeepingModule {
             if (r.getStatus() == Room.RoomStatus.DIRTY) dirty++;
             else if (r.getStatus() == Room.RoomStatus.CLEANING_IN_PROGRESS) inProg++;
             else if (r.getStatus() == Room.RoomStatus.INSPECTED) inspected++;
-            else if (r.getStatus() == Room.RoomStatus.READY_FOR_CHECK_IN || r.getStatus() == Room.RoomStatus.AVAILABLE) ready++;
+            else if (r.getStatus() == Room.RoomStatus.AVAILABLE || r.getStatus() == Room.RoomStatus.READY_FOR_CHECK_IN) ready++;
             else if (r.getStatus() == Room.RoomStatus.OCCUPIED) occupied++;
             else other++;
         }
@@ -641,7 +599,7 @@ public class HousekeepingModule {
         System.out.printf ("  DIRTY                 : %d%n", dirty);
         System.out.printf ("  CLEANING_IN_PROGRESS  : %d%n", inProg);
         System.out.printf ("  INSPECTED             : %d%n", inspected);
-        System.out.printf ("  READY_FOR_CHECK_IN    : %d%n", ready);
+        System.out.printf ("  AVAILABLE             : %d%n", ready);
         System.out.printf ("  OCCUPIED              : %d%n", occupied);
         if (other > 0) System.out.printf ("  OTHER / MAINTENANCE   : %d%n", other);
         printDivider();
@@ -790,7 +748,12 @@ public class HousekeepingModule {
         ConsoleUtils.clearScreen();
         System.out.println();
         System.out.println("  ============================================");
-        System.out.printf ("        %s%n", title);
+        int totalWidth = 44;
+        int pad = Math.max(0, (totalWidth - title.length()) / 2);
+        StringBuilder sb = new StringBuilder("  ");
+        for (int i = 0; i < pad; i++) sb.append(' ');
+        sb.append(title);
+        System.out.println(sb.toString());
         System.out.println("  ============================================");
     }
 
@@ -801,5 +764,32 @@ public class HousekeepingModule {
     private void pressEnterToContinue() {
         System.out.print("\n  Press Enter to continue...");
         sc.nextLine();
+    }
+
+    public static String generateTaskId(Stack<CleaningTask> taskList) {
+        int maxIdNum = 0;
+        if (taskList != null) {
+            for (int i = 0; i < taskList.size(); i++) {
+                CleaningTask t = taskList.get(i);
+                if (t != null && t.getTaskId() != null) {
+                    int num = parseTrailingNum(t.getTaskId());
+                    if (num > maxIdNum) maxIdNum = num;
+                }
+            }
+        }
+        int nextIdNum = Math.max(maxIdNum + 1, taskCounter);
+        taskCounter = nextIdNum + 1;
+        return String.format("T%04d", nextIdNum);
+    }
+
+    private static int parseTrailingNum(String id) {
+        if (id == null || id.isEmpty()) return 0;
+        int i = 0;
+        while (i < id.length() && !Character.isDigit(id.charAt(i))) i++;
+        try {
+            return Integer.parseInt(id.substring(i));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 }

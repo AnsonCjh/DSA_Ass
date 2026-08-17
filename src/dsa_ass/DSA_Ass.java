@@ -50,13 +50,14 @@ public class DSA_Ass {
         if (firstRun) {
             // First-ever launch: also seed sample guests & tasks, then persist everything
             seedGuestsAndTasks();
+            WalkInRegistrationModule.setGuestCounter(4);
+            WalkInRegistrationModule.setResCounter  (1);
+            HousekeepingModule.setTaskCounter       (3);
             DataStore.saveAll(guestList, roomList, reservationList, taskList);
             System.out.println("  [DB] Data directory created. Sample data seeded.");
         } else {
             // Normal launch: load guests, room statuses, reservations, tasks from CSV
             int[] counters = DataStore.loadAll(guestList, roomList, reservationList, taskList);
-            // counters no longer used for ID generation (IDs are now dynamic),
-            // but keep the calls so DataStore compiles without changes.
             WalkInRegistrationModule.setGuestCounter(counters[0] + 1);
             WalkInRegistrationModule.setResCounter  (counters[1] + 1);
             HousekeepingModule.setTaskCounter       (counters[2] + 1);
@@ -108,7 +109,7 @@ public class DSA_Ass {
                     DataStore.saveAll(guestList, roomList, reservationList, taskList);
                     break;
                 case "2":
-                    new FrontDeskModule(guestList, reservationList, roomList, taskList, sc).showMenu();
+                    new FrontDeskModule(guestList, reservationList, roomList, taskList, walkInQueue, sc).showMenu();
                     DataStore.saveAll(guestList, roomList, reservationList, taskList);
                     break;
                 case "3":
@@ -144,7 +145,7 @@ public class DSA_Ass {
         roomList.enqueue(new Room("S002", Room.RoomType.SINGLE,   99.00,  1));
         roomList.enqueue(new Room("R101", Room.RoomType.STANDARD, 180.00, 2));
         roomList.enqueue(new Room("R102", Room.RoomType.STANDARD, 180.00, 2));
-        roomList.enqueue(new Room("R201", Room.RoomType.DELUXE,   280.00, 2));
+        roomList.enqueue(new Room("R201", Room.RoomType.DELUXE,   280.00, 4));
         roomList.enqueue(new Room("R202", Room.RoomType.DELUXE,   280.00, 4));
         roomList.enqueue(new Room("R301", Room.RoomType.SUITE,    450.00, 4));
         roomList.enqueue(new Room("R302", Room.RoomType.SUITE,    450.00, 4));

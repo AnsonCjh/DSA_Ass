@@ -148,6 +148,9 @@ public class DataStore {
                 Room.RoomStatus status;
                 try {
                     status = Room.RoomStatus.valueOf(p[4]);
+                    if (status == Room.RoomStatus.READY_FOR_CHECK_IN) {
+                        status = Room.RoomStatus.AVAILABLE;
+                    }
                 } catch (IllegalArgumentException e) {
                     status = Room.RoomStatus.AVAILABLE;
                 }
