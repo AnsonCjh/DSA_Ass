@@ -194,7 +194,8 @@ public class DataStore {
                              + r.getNumGuests()           + SEP
                              + r.getTotalAmount()         + SEP
                              + r.getStatus().name()       + SEP
-                             + esc(r.getConfirmationNo()));
+                             + esc(r.getConfirmationNo()) + SEP
+                             + r.getDeposit());
                 }
             }
         } catch (IOException e) {
@@ -204,8 +205,8 @@ public class DataStore {
 
     /**
      * Reads reservations.csv and appends active reservations into list.
-     * Column layout: resId|guestId|roomNo|checkIn|checkOut|numGuests|total|status|confirmationNo
-     * The confirmationNo column (index 8) is optional for backward compatibility.
+     * Column layout: resId|guestId|roomNo|checkIn|checkOut|numGuests|total|status|confirmationNo|deposit
+     * The confirmationNo (index 8) and deposit (index 9) columns are optional for backward compatibility.
      * @return highest numeric suffix found in reservation IDs.
      */
     public static int loadReservations(BinarySearchTree<Reservation> list) {
@@ -231,6 +232,14 @@ public class DataStore {
                 // Load confirmationNo if present (column 9, index 8)
                 if (p.length >= 9 && !p[8].isEmpty()) {
                     res.setConfirmationNo(p[8]);
+                }
+                // Load deposit if present (column 10, index 9)
+                if (p.length >= 10 && !p[9].isEmpty()) {
+                    try {
+                        res.setDeposit(Double.parseDouble(p[9]));
+                    } catch (NumberFormatException e) {
+                        res.setDeposit(0.0);
+                    }
                 }
                 max = Math.max(max, parseTrailingNum(p[0]));
                 if (status != Reservation.ReservationStatus.CANCELLED) {

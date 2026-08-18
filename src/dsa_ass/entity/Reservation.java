@@ -18,6 +18,7 @@ public class Reservation implements Comparable<Reservation> {
     private int numGuests;
     private ReservationStatus status;
     private double totalAmount;
+    private double deposit;
 
     public Reservation(String reservationId, String guestId, String roomNo,
                        LocalDate checkInDate, LocalDate checkOutDate, int numGuests, double totalAmount) {
@@ -30,6 +31,7 @@ public class Reservation implements Comparable<Reservation> {
         this.totalAmount   = totalAmount;
         this.status        = ReservationStatus.PENDING;
         this.confirmationNo = "";   // set via setConfirmationNo() after construction
+        this.deposit       = 0.0;
     }
 
     // ── Getters ────────────────────────────────────────────────
@@ -42,6 +44,7 @@ public class Reservation implements Comparable<Reservation> {
     public int                getNumGuests()      { return numGuests; }
     public ReservationStatus  getStatus()         { return status; }
     public double             getTotalAmount()    { return totalAmount; }
+    public double             getDeposit()        { return deposit; }
 
     // ── Setters ────────────────────────────────────────────────
     public void setConfirmationNo(String confirmationNo)  { this.confirmationNo = confirmationNo; }
@@ -51,6 +54,7 @@ public class Reservation implements Comparable<Reservation> {
     public void setCheckOutDate(LocalDate checkOutDate)   { this.checkOutDate = checkOutDate; }
     public void setNumGuests(int numGuests)               { this.numGuests = numGuests; }
     public void setTotalAmount(double totalAmount)        { this.totalAmount = totalAmount; }
+    public void setDeposit(double deposit)                { this.deposit = deposit; }
 
     public long getNumNights() {
         return java.time.temporal.ChronoUnit.DAYS.between(checkInDate, checkOutDate);
@@ -65,10 +69,10 @@ public class Reservation implements Comparable<Reservation> {
 
     @Override
     public String toString() {
-        return String.format("%-12s %-10s %-8s %-12s %-12s %-6d RM%-10.2f %-12s",
+        return String.format("%-12s %-10s %-8s %-12s %-12s %-6d RM%-10.2f RM%-10.2f %-12s",
                 reservationId, guestId, roomNo,
                 checkInDate, checkOutDate,
-                numGuests, totalAmount, status);
+                numGuests, totalAmount, deposit, status);
     }
 }
 

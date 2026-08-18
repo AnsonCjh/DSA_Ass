@@ -1,29 +1,32 @@
 /*
  * TARUMT Resort System
  * Data Structures & Algorithms Assignment
- * ADT Used: Singly Linked List
+ * Architecture: ECB (Entity-Control-Boundary)
  */
 package dsa_ass;
 
 import dsa_ass.adt.BinarySearchTree;
 import dsa_ass.adt.Queue;
 import dsa_ass.adt.Stack;
-import dsa_ass.util.ConsoleUtils;
-import dsa_ass.util.DataStore;
+import dsa_ass.boundary.FrontDeskBoundary;
+import dsa_ass.boundary.HousekeepingBoundary;
+import dsa_ass.boundary.WalkInRegistrationBoundary;
+import dsa_ass.control.FrontDeskControl;
+import dsa_ass.control.HousekeepingControl;
+import dsa_ass.control.WalkInRegistrationControl;
 import dsa_ass.entity.CleaningTask;
 import dsa_ass.entity.Guest;
 import dsa_ass.entity.Reservation;
 import dsa_ass.entity.Room;
 import dsa_ass.entity.RoomStatusLog;
-import dsa_ass.module.FrontDeskModule;
-import dsa_ass.module.HousekeepingModule;
-import dsa_ass.module.WalkInRegistrationModule;
+import dsa_ass.util.ConsoleUtils;
+import dsa_ass.util.DataStore;
 import java.io.File;
 import java.time.LocalDate;
 import java.util.Scanner;
 
 /**
- * Main entry point - displays Main Menu and delegates to modules.
+ * Main entry point - coordinates ECB architecture boundaries and controllers.
  * ADTs Used: Queue<Guest>, Stack<CleaningTask>, BinarySearchTree<Reservation>, Queue<Room>
  */
 public class DSA_Ass {
@@ -50,17 +53,17 @@ public class DSA_Ass {
         if (firstRun) {
             // First-ever launch: also seed sample guests & tasks, then persist everything
             seedGuestsAndTasks();
-            WalkInRegistrationModule.setGuestCounter(4);
-            WalkInRegistrationModule.setResCounter  (1);
-            HousekeepingModule.setTaskCounter       (3);
+            WalkInRegistrationControl.setGuestCounter(4);
+            WalkInRegistrationControl.setResCounter  (1);
+            HousekeepingControl.setTaskCounter       (3);
             DataStore.saveAll(guestList, roomList, reservationList, taskList);
             System.out.println("  [DB] Data directory created. Sample data seeded.");
         } else {
             // Normal launch: load guests, room statuses, reservations, tasks from CSV
             int[] counters = DataStore.loadAll(guestList, roomList, reservationList, taskList);
-            WalkInRegistrationModule.setGuestCounter(counters[0] + 1);
-            WalkInRegistrationModule.setResCounter  (counters[1] + 1);
-            HousekeepingModule.setTaskCounter       (counters[2] + 1);
+            WalkInRegistrationControl.setGuestCounter(counters[0] + 1);
+            WalkInRegistrationControl.setResCounter  (counters[1] + 1);
+            HousekeepingControl.setTaskCounter       (counters[2] + 1);
             System.out.println("  [DB] Data loaded from file.");
         }
 
@@ -105,15 +108,21 @@ public class DSA_Ass {
             System.out.println();
             switch (choice) {
                 case "1":
-                    new WalkInRegistrationModule(guestList, reservationList, roomList, walkInQueue, walkInResIds, sc).showMenu();
+                    WalkInRegistrationControl walkInControl = new WalkInRegistrationControl(
+                            guestList, reservationList, roomList, walkInQueue, walkInResIds);
+                    new WalkInRegistrationBoundary(walkInControl, sc).showMenu();
                     DataStore.saveAll(guestList, roomList, reservationList, taskList);
                     break;
                 case "2":
-                    new FrontDeskModule(guestList, reservationList, roomList, taskList, walkInQueue, sc).showMenu();
+                    FrontDeskControl frontDeskControl = new FrontDeskControl(
+                            guestList, reservationList, roomList, taskList, walkInQueue);
+                    new FrontDeskBoundary(frontDeskControl, sc).showMenu();
                     DataStore.saveAll(guestList, roomList, reservationList, taskList);
                     break;
                 case "3":
-                    new HousekeepingModule(taskList, roomList, reservationList, guestList, statusHistoryStack, sc).showMenu();
+                    HousekeepingControl housekeepingControl = new HousekeepingControl(
+                            taskList, roomList, reservationList, guestList, statusHistoryStack);
+                    new HousekeepingBoundary(housekeepingControl, sc).showMenu();
                     DataStore.saveAll(guestList, roomList, reservationList, taskList);
                     break;
                 case "4":
@@ -168,7 +177,7 @@ public class DSA_Ass {
                 CleaningTask.TaskPriority.MEDIUM, LocalDate.now(), "Routine daily clean"));
         taskList.push(new CleaningTask("T0002", "V001", "Rajendran",
                 CleaningTask.TaskPriority.HIGH, LocalDate.now(), "Post-checkout deep clean"));
-        HousekeepingModule.setTaskCounter(3);
+        HousekeepingControl.setTaskCounter(3);
     }
 
     private static void pause() {
