@@ -12,7 +12,7 @@ import java.time.LocalDate;
  * Control: WalkInRegistrationControl
  *
  * Implements business logic, validation rules, ID generation,
- * and Queue ADT management for walk-in guest registration and booking.
+ * Queue ADT management, and management report generation for walk-in operations.
  */
 public class WalkInRegistrationControl {
 
@@ -51,15 +51,19 @@ public class WalkInRegistrationControl {
     // ── Validation Helpers ───────────────────────────────────────
 
     public boolean isValidIc(String ic) {
-        return ic != null && ic.matches("^\\d{6}-\\d{2}-\\d{4}$");
+        return ic != null && ic.matches("^(\\d{12}|\\d{6}-\\d{2}-\\d{4})$");
     }
 
     public boolean isValidPhone(String phone) {
-        return phone != null && phone.matches("^01\\d-\\d{7,8}$");
+        return phone != null && phone.matches("^01\\d-?\\d{7,8}$");
+    }
+
+    public boolean isValidEmail(String email) {
+        return email != null && email.matches("(?i)^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
     }
 
     public boolean isValidGmail(String email) {
-        return email != null && email.matches("(?i)^[a-zA-Z0-9._%+-]+@gmail\\.com$");
+        return isValidEmail(email);
     }
 
     // ── Guest Registration (Queue ADT enqueue) ───────────────────
@@ -246,6 +250,275 @@ public class WalkInRegistrationControl {
             }
         }
         return null;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // REPORT 1: Walk-In Reservation Summary Report
+    // ══════════════════════════════════════════════════════════════
+
+    public static class ReservationSummaryItem {
+        private final String guestId;
+        private final String guestName;
+        private final String roomType;
+        private final String roomNo;
+        private final LocalDate checkInDate;
+        private final LocalDate checkOutDate;
+        private final Reservation.ReservationStatus status;
+        private final double totalAmount;
+
+        public ReservationSummaryItem(String guestId, String guestName, String roomType, String roomNo,
+                                      LocalDate checkInDate, LocalDate checkOutDate,
+                                      Reservation.ReservationStatus status, double totalAmount) {
+            this.guestId      = guestId;
+            this.guestName    = guestName;
+            this.roomType     = roomType;
+            this.roomNo       = roomNo;
+            this.checkInDate  = checkInDate;
+            this.checkOutDate = checkOutDate;
+            this.status       = status;
+            this.totalAmount  = totalAmount;
+        }
+
+        public String getGuestId()                   { return guestId; }
+        public String getGuestName()                 { return guestName; }
+        public String getRoomType()                  { return roomType; }
+        public String getRoomNo()                    { return roomNo; }
+        public LocalDate getCheckInDate()            { return checkInDate; }
+        public LocalDate getCheckOutDate()           { return checkOutDate; }
+        public Reservation.ReservationStatus getStatus() { return status; }
+        public double getTotalAmount()               { return totalAmount; }
+    }
+
+    public static class ReservationSummaryReportResult {
+        private final ReservationSummaryItem[] items;
+        private final int totalReservations;
+        private final int confirmedCount;
+        private final int cancelledCount;
+        private final int checkedInCount;
+        private final int checkedOutCount;
+        private final int pendingCount;
+        private final double totalRevenue;
+
+        public ReservationSummaryReportResult(ReservationSummaryItem[] items, int totalReservations,
+                                              int confirmedCount, int cancelledCount,
+                                              int checkedInCount, int checkedOutCount,
+                                              int pendingCount, double totalRevenue) {
+            this.items             = items;
+            this.totalReservations = totalReservations;
+            this.confirmedCount    = confirmedCount;
+            this.cancelledCount    = cancelledCount;
+            this.checkedInCount    = checkedInCount;
+            this.checkedOutCount   = checkedOutCount;
+            this.pendingCount      = pendingCount;
+            this.totalRevenue      = totalRevenue;
+        }
+
+        public ReservationSummaryItem[] getItems() { return items; }
+        public int getTotalReservations()          { return totalReservations; }
+        public int getConfirmedCount()             { return confirmedCount; }
+        public int getCancelledCount()             { return cancelledCount; }
+        public int getCheckedInCount()             { return checkedInCount; }
+        public int getCheckedOutCount()            { return checkedOutCount; }
+        public int getPendingCount()               { return pendingCount; }
+        public double getTotalRevenue()            { return totalRevenue; }
+    }
+
+    public ReservationSummaryReportResult generateReservationSummaryReport(LocalDate startDate,
+                                                                          LocalDate endDate,
+                                                                          Room.RoomType roomTypeFilter,
+                                                                          Reservation.ReservationStatus statusFilter) {
+        // ── [SEARCHING TECHNIQUE] ──
+        // Traverses the Binary Search Tree (in-order) to retrieve reservations
+        // and performs Linear Search across guestList and roomList.
+        Queue<ReservationSummaryItem> matchingQueue = new Queue<ReservationSummaryItem>();
+
+        for (int i = 0; i < reservationList.size(); i++) {
+            Reservation res = reservationList.get(i);
+
+            // ── [FILTERING CRITERIA] ──
+            // 1. Date range filter on check-in date
+            if (startDate != null && res.getCheckInDate().isBefore(startDate)) continue;
+            if (endDate != null && res.getCheckInDate().isAfter(endDate)) continue;
+
+            // 2. Reservation status filter
+            if (statusFilter != null && res.getStatus() != statusFilter) continue;
+
+            // ── [SEARCHING TECHNIQUE: Linear search for Guest & Room] ──
+            Guest g = findGuest(res.getGuestId());
+            Room r  = findRoom(res.getRoomNo());
+
+            // 3. Room type filter
+            if (roomTypeFilter != null) {
+                if (r == null || r.getRoomType() != roomTypeFilter) continue;
+            }
+
+            String guestName = (g != null) ? g.getName() : res.getGuestId();
+            String typeStr   = (r != null) ? r.getRoomType().name() : "N/A";
+
+            matchingQueue.enqueue(new ReservationSummaryItem(
+                    res.getGuestId(), guestName, typeStr, res.getRoomNo(),
+                    res.getCheckInDate(), res.getCheckOutDate(), res.getStatus(), res.getTotalAmount()));
+        }
+
+        // Convert Queue to array for manual sorting without collections framework
+        int count = matchingQueue.size();
+        ReservationSummaryItem[] arr = new ReservationSummaryItem[count];
+        for (int i = 0; i < count; i++) {
+            arr[i] = matchingQueue.get(i);
+        }
+
+        // ── [SORTING TECHNIQUE: Custom Insertion Sort by Check-In Date] ──
+        for (int i = 1; i < count; i++) {
+            ReservationSummaryItem key = arr[i];
+            int j = i - 1;
+            while (j >= 0 && arr[j].getCheckInDate().isAfter(key.getCheckInDate())) {
+                arr[j + 1] = arr[j];
+                j--;
+            }
+            arr[j + 1] = key;
+        }
+
+        // ── [CALCULATION: Aggregate Totals] ──
+        int confirmed = 0, cancelled = 0, checkedIn = 0, checkedOut = 0, pending = 0;
+        double revenue = 0.0;
+
+        for (int i = 0; i < count; i++) {
+            ReservationSummaryItem item = arr[i];
+            if (item.getStatus() == Reservation.ReservationStatus.CONFIRMED)   confirmed++;
+            else if (item.getStatus() == Reservation.ReservationStatus.CANCELLED) cancelled++;
+            else if (item.getStatus() == Reservation.ReservationStatus.CHECKED_IN) checkedIn++;
+            else if (item.getStatus() == Reservation.ReservationStatus.CHECKED_OUT) checkedOut++;
+            else if (item.getStatus() == Reservation.ReservationStatus.PENDING) pending++;
+
+            if (item.getStatus() != Reservation.ReservationStatus.CANCELLED) {
+                revenue += item.getTotalAmount();
+            }
+        }
+
+        return new ReservationSummaryReportResult(arr, count, confirmed, cancelled, checkedIn, checkedOut, pending, revenue);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // REPORT 2: Room Type Demand Report
+    // ══════════════════════════════════════════════════════════════
+
+    public static class RoomTypeDemandItem {
+        private int rank;
+        private final Room.RoomType roomType;
+        private final int reservationCount;
+        private double demandShare;
+        private final double totalRevenue;
+
+        public RoomTypeDemandItem(Room.RoomType roomType, int reservationCount, double totalRevenue) {
+            this.roomType         = roomType;
+            this.reservationCount = reservationCount;
+            this.totalRevenue     = totalRevenue;
+            this.rank             = 0;
+            this.demandShare      = 0.0;
+        }
+
+        public int getRank()                  { return rank; }
+        public void setRank(int rank)         { this.rank = rank; }
+        public Room.RoomType getRoomType()    { return roomType; }
+        public int getReservationCount()      { return reservationCount; }
+        public double getDemandShare()        { return demandShare; }
+        public void setDemandShare(double s)  { this.demandShare = s; }
+        public double getTotalRevenue()       { return totalRevenue; }
+    }
+
+    public static class RoomTypeDemandReportResult {
+        private final RoomTypeDemandItem[] items;
+        private final int totalReservations;
+        private final double totalRevenue;
+        private final String mostRequestedRoomType;
+
+        public RoomTypeDemandReportResult(RoomTypeDemandItem[] items, int totalReservations,
+                                          double totalRevenue, String mostRequestedRoomType) {
+            this.items                 = items;
+            this.totalReservations     = totalReservations;
+            this.totalRevenue          = totalRevenue;
+            this.mostRequestedRoomType = mostRequestedRoomType;
+        }
+
+        public RoomTypeDemandItem[] getItems()    { return items; }
+        public int getTotalReservations()         { return totalReservations; }
+        public double getTotalRevenue()           { return totalRevenue; }
+        public String getMostRequestedRoomType()  { return mostRequestedRoomType; }
+    }
+
+    public RoomTypeDemandReportResult generateRoomTypeDemandReport(LocalDate startDate,
+                                                                   LocalDate endDate,
+                                                                   boolean onlyConfirmed) {
+        Room.RoomType[] types = Room.RoomType.values();
+        int[] counts = new int[types.length];
+        double[] revenues = new double[types.length];
+        int overallTotalReservations = 0;
+        double overallTotalRevenue = 0.0;
+
+        // ── [SEARCHING TECHNIQUE & FILTERING CRITERIA] ──
+        for (int i = 0; i < reservationList.size(); i++) {
+            Reservation res = reservationList.get(i);
+
+            // Filter date range
+            if (startDate != null && res.getCheckInDate().isBefore(startDate)) continue;
+            if (endDate != null && res.getCheckInDate().isAfter(endDate)) continue;
+
+            // Filter confirmed/active reservations
+            if (onlyConfirmed) {
+                if (res.getStatus() == Reservation.ReservationStatus.CANCELLED) continue;
+            }
+
+            // Search matching room type
+            Room r = findRoom(res.getRoomNo());
+            if (r != null) {
+                Room.RoomType rt = r.getRoomType();
+                for (int t = 0; t < types.length; t++) {
+                    if (types[t] == rt) {
+                        counts[t]++;
+                        revenues[t] += res.getTotalAmount();
+                        overallTotalReservations++;
+                        overallTotalRevenue += res.getTotalAmount();
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Create item array for each room type
+        RoomTypeDemandItem[] items = new RoomTypeDemandItem[types.length];
+        for (int t = 0; t < types.length; t++) {
+            items[t] = new RoomTypeDemandItem(types[t], counts[t], revenues[t]);
+        }
+
+        // ── [SORTING TECHNIQUE: Custom Selection Sort from Highest to Lowest Demand] ──
+        for (int i = 0; i < items.length - 1; i++) {
+            int maxIdx = i;
+            for (int j = i + 1; j < items.length; j++) {
+                if (items[j].getReservationCount() > items[maxIdx].getReservationCount()) {
+                    maxIdx = j;
+                }
+            }
+            if (maxIdx != i) {
+                RoomTypeDemandItem temp = items[i];
+                items[i] = items[maxIdx];
+                items[maxIdx] = temp;
+            }
+        }
+
+        // ── [CALCULATION: Demand Shares and Rankings] ──
+        for (int i = 0; i < items.length; i++) {
+            items[i].setRank(i + 1);
+            double share = (overallTotalReservations > 0)
+                    ? ((double) items[i].getReservationCount() / overallTotalReservations) * 100.0
+                    : 0.0;
+            items[i].setDemandShare(share);
+        }
+
+        String mostRequested = (items.length > 0 && items[0].getReservationCount() > 0)
+                ? items[0].getRoomType().name() + " (" + items[0].getReservationCount() + " reservations)"
+                : "None";
+
+        return new RoomTypeDemandReportResult(items, overallTotalReservations, overallTotalRevenue, mostRequested);
     }
 
     // ── Persistence ──────────────────────────────────────────────

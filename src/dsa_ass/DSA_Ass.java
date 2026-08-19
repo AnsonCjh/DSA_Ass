@@ -173,11 +173,37 @@ public class DSA_Ass {
     }
 
     private static void seedSampleTasks() {
-        taskList.push(new CleaningTask("T0001", "R101", "Siti Aisyah",
-                CleaningTask.TaskPriority.MEDIUM, LocalDate.now(), "Routine daily clean"));
-        taskList.push(new CleaningTask("T0002", "V001", "Rajendran",
-                CleaningTask.TaskPriority.HIGH, LocalDate.now(), "Post-checkout deep clean"));
-        HousekeepingControl.setTaskCounter(3);
+        CleaningTask t1 = new CleaningTask("T0001", "101", "Ali",
+                CleaningTask.TaskPriority.HIGH, LocalDate.now(), "Routine clean", "09:10");
+        t1.setStatus(CleaningTask.TaskStatus.PENDING);
+        t1.setUpdatedTime("09:10");
+
+        CleaningTask t2 = new CleaningTask("T0002", "205", "Mei Ling",
+                CleaningTask.TaskPriority.MEDIUM, LocalDate.now(), "Checkout clean", "10:25");
+        t2.setStatus(CleaningTask.TaskStatus.IN_PROGRESS);
+        t2.setUpdatedTime("10:25");
+
+        CleaningTask t3 = new CleaningTask("T0003", "301", "Kumar",
+                CleaningTask.TaskPriority.HIGH, LocalDate.now(), "Deep clean", "11:40");
+        t3.setStatus(CleaningTask.TaskStatus.COMPLETED);
+        t3.setUpdatedTime("11:40");
+
+        CleaningTask t4 = new CleaningTask("T0004", "108", "Ali",
+                CleaningTask.TaskPriority.LOW, LocalDate.now(), "Towel restock", "12:15");
+        t4.setStatus(CleaningTask.TaskStatus.COMPLETED);
+        t4.setUpdatedTime("12:15");
+
+        CleaningTask t5 = new CleaningTask("T0005", "210", "Mei Ling",
+                CleaningTask.TaskPriority.MEDIUM, LocalDate.now(), "Inspection prep", "13:05");
+        t5.setStatus(CleaningTask.TaskStatus.PENDING);
+        t5.setUpdatedTime("13:05");
+
+        taskList.push(t1);
+        taskList.push(t2);
+        taskList.push(t3);
+        taskList.push(t4);
+        taskList.push(t5);
+        HousekeepingControl.setTaskCounter(6);
     }
 
     private static void pause() {

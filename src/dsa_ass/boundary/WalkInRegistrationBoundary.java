@@ -42,6 +42,7 @@ public class WalkInRegistrationBoundary {
             System.out.println("  3. Process Next Walk-In Guest");
             System.out.println("  4. Check Room Availability");
             System.out.println("  5. View Walk-In Reservations");
+            System.out.println("  6. Management Reports");
             System.out.println("  0. Back to Main Menu");
             printDivider();
             System.out.print("  Enter your choice: ");
@@ -53,9 +54,10 @@ public class WalkInRegistrationBoundary {
                 case "3": processNextGuest();       break;
                 case "4": checkRoomAvailability();  break;
                 case "5": viewWalkInReservations(); break;
+                case "6": managementReports();      break;
                 case "0": back = true;              break;
                 default:
-                    System.out.println("  [!] Invalid option. Please enter 0 - 5.");
+                    System.out.println("  [!] Invalid option. Please enter 0 - 6.");
                     pressEnterToContinue();
             }
         }
@@ -72,13 +74,13 @@ public class WalkInRegistrationBoundary {
         String name = readNonEmptyInput("  Full Name         : ");
         if (name.equals("0")) { cancelled(); return; }
 
-        String ic = readIcInput("  IC Number (XXXXXX-XX-XXXX) : ");
+        String ic = readIcInput("  IC Number (12 digits, e.g. 990101145678) : ");
         if (ic.equals("0")) { cancelled(); return; }
 
-        String phone = readPhoneInput("  Phone Number (01X-XXXXXXX)  : ");
+        String phone = readPhoneInput("  Phone Number (10-11 digits, e.g. 0123456789) : ");
         if (phone.equals("0")) { cancelled(); return; }
 
-        String email = readGmailInput("  Gmail Address (@gmail.com)  : ");
+        String email = readEmailInput("  Email Address (e.g. user@email.com) : ");
         if (email.equals("0")) { cancelled(); return; }
 
         String nationality = readNonEmptyInput("  Nationality       : ");
@@ -124,14 +126,14 @@ public class WalkInRegistrationBoundary {
         }
 
         Queue<Guest> queue = control.getWalkInQueue();
-        System.out.printf("  %-5s %-10s %-22s %-16s %-14s%n",
+        System.out.printf("  %-6s %-10s %-20s %-16s %-14s%n",
                 "Pos", "Guest ID", "Full Name", "Phone", "Status");
         printDivider();
 
         for (int i = 0; i < queue.size(); i++) {
             Guest g = queue.get(i);
-            String positionTag = (i == 0) ? "#1 [NEXT]" : "#" + (i + 1);
-            System.out.printf("  %-5s %-10s %-22s %-16s %-14s%n",
+            String positionTag = "#" + (i + 1);
+            System.out.printf("  %-6s %-10s %-20s %-16s %-14s%n",
                     positionTag,
                     g.getGuestId(),
                     g.getName(),
@@ -554,6 +556,222 @@ public class WalkInRegistrationBoundary {
     }
 
     // ══════════════════════════════════════════════════════════════
+    // 6. Management Reports
+    // ══════════════════════════════════════════════════════════════
+    private void managementReports() {
+        boolean back = false;
+        while (!back) {
+            ConsoleUtils.clearScreen();
+            printHeader("Walk-In Management Reports");
+            System.out.println("  1. Walk-In Reservation Summary Report");
+            System.out.println("  2. Room Type Demand Report");
+            System.out.println("  0. Back");
+            printDivider();
+            System.out.print("  Enter your choice: ");
+            String choice = sc.nextLine().trim();
+            System.out.println();
+
+            switch (choice) {
+                case "1": displayWalkInReservationSummaryReport(); break;
+                case "2": displayRoomTypeDemandReport();           break;
+                case "0": back = true;                             break;
+                default:
+                    System.out.println("  [!] Invalid choice.");
+                    pressEnterToContinue();
+            }
+        }
+    }
+
+    // ── Report 1: Walk-In Reservation Summary Report ───────────────
+    private void displayWalkInReservationSummaryReport() {
+        printHeader("Reservation Summary Report Parameters");
+        System.out.println("  Enter filtering parameters (press Enter to include ALL):");
+        System.out.println();
+
+        // Date Range
+        System.out.print("  Start Check-In Date (DD/MM/YYYY, or Enter for ALL): ");
+        String startStr = sc.nextLine().trim();
+        LocalDate startDate = null;
+        if (!startStr.isEmpty()) {
+            try { startDate = LocalDate.parse(startStr, DATE_FMT); }
+            catch (DateTimeParseException e) {
+                System.out.println("  [!] Invalid date format. Including all start dates.");
+                startDate = null;
+            }
+        }
+
+        System.out.print("  End Check-In Date   (DD/MM/YYYY, or Enter for ALL): ");
+        String endStr = sc.nextLine().trim();
+        LocalDate endDate = null;
+        if (!endStr.isEmpty()) {
+            try { endDate = LocalDate.parse(endStr, DATE_FMT); }
+            catch (DateTimeParseException e) {
+                System.out.println("  [!] Invalid date format. Including all end dates.");
+                endDate = null;
+            }
+        }
+
+        // Room Type Filter
+        System.out.println();
+        System.out.println("  Filter by Room Type:");
+        System.out.println("  1. ALL");
+        System.out.println("  2. SINGLE");
+        System.out.println("  3. STANDARD");
+        System.out.println("  4. DELUXE");
+        System.out.println("  5. SUITE");
+        System.out.println("  6. VILLA");
+        System.out.print("  Select room type (1-6, Enter for ALL): ");
+        String rtChoice = sc.nextLine().trim();
+        Room.RoomType roomTypeFilter = null;
+        switch (rtChoice) {
+            case "2": roomTypeFilter = Room.RoomType.SINGLE;   break;
+            case "3": roomTypeFilter = Room.RoomType.STANDARD; break;
+            case "4": roomTypeFilter = Room.RoomType.DELUXE;   break;
+            case "5": roomTypeFilter = Room.RoomType.SUITE;    break;
+            case "6": roomTypeFilter = Room.RoomType.VILLA;    break;
+        }
+
+        // Status Filter
+        System.out.println();
+        System.out.println("  Filter by Reservation Status:");
+        System.out.println("  1. ALL");
+        System.out.println("  2. CONFIRMED");
+        System.out.println("  3. CHECKED_IN");
+        System.out.println("  4. CHECKED_OUT");
+        System.out.println("  5. CANCELLED");
+        System.out.println("  6. PENDING");
+        System.out.print("  Select status (1-6, Enter for ALL): ");
+        String stChoice = sc.nextLine().trim();
+        Reservation.ReservationStatus statusFilter = null;
+        switch (stChoice) {
+            case "2": statusFilter = Reservation.ReservationStatus.CONFIRMED;   break;
+            case "3": statusFilter = Reservation.ReservationStatus.CHECKED_IN;  break;
+            case "4": statusFilter = Reservation.ReservationStatus.CHECKED_OUT; break;
+            case "5": statusFilter = Reservation.ReservationStatus.CANCELLED;   break;
+            case "6": statusFilter = Reservation.ReservationStatus.PENDING;     break;
+        }
+
+        WalkInRegistrationControl.ReservationSummaryReportResult result =
+                control.generateReservationSummaryReport(startDate, endDate, roomTypeFilter, statusFilter);
+
+        // ── [REPORT DISPLAY] ──
+        ConsoleUtils.clearScreen();
+        System.out.println("============================================================================");
+        System.out.println("                   WALK-IN RESERVATION SUMMARY REPORT                       ");
+        System.out.println("============================================================================");
+        System.out.println("Generated Date : " + LocalDate.now().format(DATE_FMT));
+        System.out.printf ("Date Range     : %s to %s%n",
+                (startDate != null ? startDate.format(DATE_FMT) : "ALL"),
+                (endDate != null ? endDate.format(DATE_FMT) : "ALL"));
+        System.out.println("Room Type      : " + (roomTypeFilter != null ? roomTypeFilter.name() : "ALL"));
+        System.out.println("Status         : " + (statusFilter != null ? statusFilter.name() : "ALL"));
+        System.out.println("Sorted by      : Check-In Date (Ascending)");
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.printf("%-9s %-18s %-11s %-11s %-11s %-11s %-11s%n",
+                "Guest ID", "Guest Name", "Room Type", "Check-In", "Check-Out", "Amount", "Status");
+        System.out.println("----------------------------------------------------------------------------");
+
+        WalkInRegistrationControl.ReservationSummaryItem[] items = result.getItems();
+        if (items.length == 0) {
+            System.out.println("  No reservation records found matching the specified filter criteria.");
+        } else {
+            for (int i = 0; i < items.length; i++) {
+                WalkInRegistrationControl.ReservationSummaryItem item = items[i];
+                System.out.printf("%-9s %-18s %-11s %-11s %-11s RM%-9.2f %-11s%n",
+                        item.getGuestId(),
+                        item.getGuestName(),
+                        item.getRoomType(),
+                        item.getCheckInDate().format(DATE_FMT),
+                        item.getCheckOutDate().format(DATE_FMT),
+                        item.getTotalAmount(),
+                        item.getStatus());
+            }
+        }
+
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.println();
+        System.out.println("SUMMARY METRICS");
+        System.out.println("--------------------------------");
+        System.out.printf("Total Reservations : %d%n", result.getTotalReservations());
+        System.out.printf("Confirmed          : %d%n", result.getConfirmedCount());
+        System.out.printf("Checked-In         : %d%n", result.getCheckedInCount());
+        System.out.printf("Checked-Out        : %d%n", result.getCheckedOutCount());
+        System.out.printf("Cancelled          : %d%n", result.getCancelledCount());
+        System.out.printf("Pending            : %d%n", result.getPendingCount());
+        System.out.printf("Total Revenue      : RM %.2f%n", result.getTotalRevenue());
+        pressEnterToContinue();
+    }
+
+    // ── Report 2: Room Type Demand Report ─────────────────────────
+    private void displayRoomTypeDemandReport() {
+        printHeader("Room Type Demand Report Parameters");
+        System.out.println("  Enter filtering parameters (press Enter to include ALL):");
+        System.out.println();
+
+        System.out.print("  Start Check-In Date (DD/MM/YYYY, or Enter for ALL): ");
+        String startStr = sc.nextLine().trim();
+        LocalDate startDate = null;
+        if (!startStr.isEmpty()) {
+            try { startDate = LocalDate.parse(startStr, DATE_FMT); }
+            catch (DateTimeParseException e) { startDate = null; }
+        }
+
+        System.out.print("  End Check-In Date   (DD/MM/YYYY, or Enter for ALL): ");
+        String endStr = sc.nextLine().trim();
+        LocalDate endDate = null;
+        if (!endStr.isEmpty()) {
+            try { endDate = LocalDate.parse(endStr, DATE_FMT); }
+            catch (DateTimeParseException e) { endDate = null; }
+        }
+
+        System.out.println();
+        System.out.println("  1. Confirmed / Active Bookings Only (Exclude Cancelled)");
+        System.out.println("  2. All Bookings (Include Cancelled)");
+        System.out.print("  Select option (1-2, default 1): ");
+        String opt = sc.nextLine().trim();
+        boolean onlyConfirmed = !opt.equals("2");
+
+        WalkInRegistrationControl.RoomTypeDemandReportResult result =
+                control.generateRoomTypeDemandReport(startDate, endDate, onlyConfirmed);
+
+        // ── [REPORT DISPLAY] ──
+        ConsoleUtils.clearScreen();
+        System.out.println("============================================================================");
+        System.out.println("                      ROOM TYPE DEMAND REPORT                               ");
+        System.out.println("============================================================================");
+        System.out.println("Generated Date : " + LocalDate.now().format(DATE_FMT));
+        System.out.printf ("Date Range     : %s to %s%n",
+                (startDate != null ? startDate.format(DATE_FMT) : "ALL"),
+                (endDate != null ? endDate.format(DATE_FMT) : "ALL"));
+        System.out.println("Status Filter  : " + (onlyConfirmed ? "CONFIRMED / ACTIVE ONLY" : "ALL BOOKINGS"));
+        System.out.println("Sorted by      : Demand Count (Highest to Lowest)");
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.printf("%-6s %-16s %-16s %-16s %-16s%n",
+                "Rank", "Room Type", "Reservations", "Demand Share", "Total Revenue");
+        System.out.println("----------------------------------------------------------------------------");
+
+        WalkInRegistrationControl.RoomTypeDemandItem[] items = result.getItems();
+        for (int i = 0; i < items.length; i++) {
+            WalkInRegistrationControl.RoomTypeDemandItem item = items[i];
+            System.out.printf("#%-5d %-16s %-16d %-15.2f%% RM%-14.2f%n",
+                    item.getRank(),
+                    item.getRoomType().name(),
+                    item.getReservationCount(),
+                    item.getDemandShare(),
+                    item.getTotalRevenue());
+        }
+
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.println();
+        System.out.println("DEMAND SUMMARY");
+        System.out.println("--------------------------------");
+        System.out.printf("Total Reservations      : %d%n", result.getTotalReservations());
+        System.out.printf("Most Requested Room Type: %s%n", result.getMostRequestedRoomType());
+        System.out.printf("Overall Total Revenue   : RM %.2f%n", result.getTotalRevenue());
+        pressEnterToContinue();
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // Helper Methods
     // ══════════════════════════════════════════════════════════════
 
@@ -598,7 +816,7 @@ public class WalkInRegistrationBoundary {
             if (control.isValidIc(input)) {
                 return input;
             }
-            System.out.println("  [!] Invalid IC format. Must be in format XXXXXX-XX-XXXX (e.g. 990101-14-5678).");
+            System.out.println("  [!] Invalid IC format. Must be a 12-digit number (e.g. 990101145678).");
             System.out.println("      Please try again (or enter 0 to cancel).");
         }
     }
@@ -611,22 +829,26 @@ public class WalkInRegistrationBoundary {
             if (control.isValidPhone(input)) {
                 return input;
             }
-            System.out.println("  [!] Invalid phone number format. Must start with 01X- followed by 7-8 digits (e.g. 012-3456789).");
+            System.out.println("  [!] Invalid phone number format. Must be 10-11 digits starting with 01 (e.g. 0123456789).");
+            System.out.println("      Please try again (or enter 0 to cancel).");
+        }
+    }
+
+    private String readEmailInput(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            String input = sc.nextLine().trim();
+            if (input.equals("0")) return "0";
+            if (control.isValidEmail(input)) {
+                return input;
+            }
+            System.out.println("  [!] Invalid email address format (e.g. user@email.com).");
             System.out.println("      Please try again (or enter 0 to cancel).");
         }
     }
 
     private String readGmailInput(String prompt) {
-        while (true) {
-            System.out.print(prompt);
-            String input = sc.nextLine().trim();
-            if (input.equals("0")) return "0";
-            if (control.isValidGmail(input)) {
-                return input;
-            }
-            System.out.println("  [!] Invalid Gmail address. Must be a valid address ending with @gmail.com (e.g. user@gmail.com).");
-            System.out.println("      Please try again (or enter 0 to cancel).");
-        }
+        return readEmailInput(prompt);
     }
 
     private void printHeader(String title) {

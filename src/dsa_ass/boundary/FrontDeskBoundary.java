@@ -44,6 +44,7 @@ public class FrontDeskBoundary {
             System.out.println("  4. Check-Out Guest");
             System.out.println("  5. Check Room Availability");
             System.out.println("  6. View Current Guests");
+            System.out.println("  7. Management Reports");
             System.out.println("  0. Back to Main Menu");
             printDivider();
             System.out.print("  Enter your choice: ");
@@ -56,9 +57,10 @@ public class FrontDeskBoundary {
                 case "4": checkOut();              control.autoSave(); break;
                 case "5": checkRoomAvailability();               break;
                 case "6": viewCurrentGuests();                   break;
+                case "7": managementReports();                   break;
                 case "0": back = true;                           break;
                 default:
-                    System.out.println("  [!] Invalid option. Please enter 0 - 6.");
+                    System.out.println("  [!] Invalid option. Please enter 0 - 7.");
                     pressEnterToContinue();
             }
         }
@@ -264,7 +266,7 @@ public class FrontDeskBoundary {
                 break;
             case "2":
                 System.out.println("  Current Phone: " + targetGuest.getPhone());
-                String phone = readPhoneInput("  Enter New Phone Number (01X-XXXXXXX): ");
+                String phone = readPhoneInput("  Enter New Phone Number (10-11 digits, e.g. 0123456789): ");
                 if (!phone.equals("0")) {
                     targetGuest.setPhone(phone);
                     control.autoSave();
@@ -273,7 +275,7 @@ public class FrontDeskBoundary {
                 break;
             case "3":
                 System.out.println("  Current Email: " + targetGuest.getEmail());
-                String email = readGmailInput("  Enter New Gmail Address (@gmail.com): ");
+                String email = readEmailInput("  Enter New Email Address (e.g. user@email.com): ");
                 if (!email.equals("0")) {
                     targetGuest.setEmail(email);
                     control.autoSave();
@@ -282,7 +284,7 @@ public class FrontDeskBoundary {
                 break;
             case "4":
                 System.out.println("  Current IC / Passport: " + targetGuest.getIcNo());
-                String ic = readIcInput("  Enter New IC Number (XXXXXX-XX-XXXX): ");
+                String ic = readIcInput("  Enter New IC Number (12 digits, e.g. 990101145678): ");
                 if (!ic.equals("0")) {
                     targetGuest.setIcNo(ic);
                     control.autoSave();
@@ -673,6 +675,231 @@ public class FrontDeskBoundary {
     }
 
     // ══════════════════════════════════════════════════════════════
+    // 7. Management Reports
+    // ══════════════════════════════════════════════════════════════
+    private void managementReports() {
+        boolean back = false;
+        while (!back) {
+            ConsoleUtils.clearScreen();
+            printHeader("Front Desk Management Reports");
+            System.out.println("  1. Check-In and Check-Out Activity Report");
+            System.out.println("  2. Deposit and Payment Status Report");
+            System.out.println("  0. Back");
+            printDivider();
+            System.out.print("  Enter your choice: ");
+            String choice = sc.nextLine().trim();
+            System.out.println();
+
+            switch (choice) {
+                case "1": displayActivityReport();       break;
+                case "2": displayDepositPaymentReport(); break;
+                case "0": back = true;                   break;
+                default:
+                    System.out.println("  [!] Invalid choice.");
+                    pressEnterToContinue();
+            }
+        }
+    }
+
+    // ── Report 1: Check-In and Check-Out Activity Report ───────────
+    private void displayActivityReport() {
+        printHeader("Activity Report Parameters");
+        System.out.println("  Enter filtering parameters (press Enter to include ALL):");
+        System.out.println();
+
+        System.out.print("  Start Activity Date (DD/MM/YYYY, or Enter for ALL): ");
+        String startStr = sc.nextLine().trim();
+        LocalDate startDate = null;
+        if (!startStr.isEmpty()) {
+            try { startDate = LocalDate.parse(startStr, DATE_FMT); }
+            catch (DateTimeParseException e) { startDate = null; }
+        }
+
+        System.out.print("  End Activity Date   (DD/MM/YYYY, or Enter for ALL): ");
+        String endStr = sc.nextLine().trim();
+        LocalDate endDate = null;
+        if (!endStr.isEmpty()) {
+            try { endDate = LocalDate.parse(endStr, DATE_FMT); }
+            catch (DateTimeParseException e) { endDate = null; }
+        }
+
+        System.out.println();
+        System.out.println("  Filter by Activity Type:");
+        System.out.println("  1. ALL Activities");
+        System.out.println("  2. CHECK-IN Only");
+        System.out.println("  3. CHECK-OUT Only");
+        System.out.print("  Select activity (1-3, Enter for ALL): ");
+        String actChoice = sc.nextLine().trim();
+        String actFilter = "ALL";
+        if (actChoice.equals("2")) actFilter = "CHECK_IN";
+        else if (actChoice.equals("3")) actFilter = "CHECK_OUT";
+
+        System.out.println();
+        System.out.println("  Filter by Room Type:");
+        System.out.println("  1. ALL");
+        System.out.println("  2. SINGLE");
+        System.out.println("  3. STANDARD");
+        System.out.println("  4. DELUXE");
+        System.out.println("  5. SUITE");
+        System.out.println("  6. VILLA");
+        System.out.print("  Select room type (1-6, Enter for ALL): ");
+        String rtChoice = sc.nextLine().trim();
+        Room.RoomType roomTypeFilter = null;
+        switch (rtChoice) {
+            case "2": roomTypeFilter = Room.RoomType.SINGLE;   break;
+            case "3": roomTypeFilter = Room.RoomType.STANDARD; break;
+            case "4": roomTypeFilter = Room.RoomType.DELUXE;   break;
+            case "5": roomTypeFilter = Room.RoomType.SUITE;    break;
+            case "6": roomTypeFilter = Room.RoomType.VILLA;    break;
+        }
+
+        FrontDeskControl.ActivityReportResult result =
+                control.generateActivityReport(startDate, endDate, actFilter, roomTypeFilter);
+
+        // ── [REPORT DISPLAY] ──
+        ConsoleUtils.clearScreen();
+        System.out.println("============================================================================");
+        System.out.println("                 CHECK-IN & CHECK-OUT ACTIVITY REPORT                       ");
+        System.out.println("============================================================================");
+        System.out.println("Generated Date : " + LocalDate.now().format(DATE_FMT));
+        System.out.printf ("Date Range     : %s to %s%n",
+                (startDate != null ? startDate.format(DATE_FMT) : "ALL"),
+                (endDate != null ? endDate.format(DATE_FMT) : "ALL"));
+        System.out.println("Activity Filter: " + actFilter);
+        System.out.println("Room Type      : " + (roomTypeFilter != null ? roomTypeFilter.name() : "ALL"));
+        System.out.println("Sorted by      : Activity Date (Chronological)");
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.printf("%-10s %-18s %-8s %-11s %-12s %-12s %-10s%n",
+                "Conf No", "Guest Name", "Room", "Room Type", "Activity", "Date", "Deposit");
+        System.out.println("----------------------------------------------------------------------------");
+
+        FrontDeskControl.ActivityReportItem[] items = result.getItems();
+        if (items.length == 0) {
+            System.out.println("  No activity records found matching the specified filter criteria.");
+        } else {
+            for (int i = 0; i < items.length; i++) {
+                FrontDeskControl.ActivityReportItem item = items[i];
+                System.out.printf("%-10s %-18s %-8s %-11s %-12s %-12s RM%-8.2f%n",
+                        item.getConfirmationNo(),
+                        item.getGuestName(),
+                        item.getRoomNo(),
+                        item.getRoomType(),
+                        item.getActivityType(),
+                        item.getActivityDate().format(DATE_FMT),
+                        item.getDepositAmount());
+            }
+        }
+
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.println();
+        System.out.println("ACTIVITY SUMMARY");
+        System.out.println("--------------------------------");
+        System.out.printf("Total Activities  : %d%n", result.getTotalActivities());
+        System.out.printf("Total Check-Ins   : %d%n", result.getTotalCheckIns());
+        System.out.printf("Total Check-Outs  : %d%n", result.getTotalCheckOuts());
+        pressEnterToContinue();
+    }
+
+    // ── Report 2: Deposit and Payment Status Report ────────────────
+    private void displayDepositPaymentReport() {
+        printHeader("Deposit & Payment Report Parameters");
+        System.out.println("  Enter filtering parameters (press Enter to include ALL):");
+        System.out.println();
+
+        System.out.print("  Start Check-In Date (DD/MM/YYYY, or Enter for ALL): ");
+        String startStr = sc.nextLine().trim();
+        LocalDate startDate = null;
+        if (!startStr.isEmpty()) {
+            try { startDate = LocalDate.parse(startStr, DATE_FMT); }
+            catch (DateTimeParseException e) { startDate = null; }
+        }
+
+        System.out.print("  End Check-In Date   (DD/MM/YYYY, or Enter for ALL): ");
+        String endStr = sc.nextLine().trim();
+        LocalDate endDate = null;
+        if (!endStr.isEmpty()) {
+            try { endDate = LocalDate.parse(endStr, DATE_FMT); }
+            catch (DateTimeParseException e) { endDate = null; }
+        }
+
+        System.out.println();
+        System.out.println("  Filter by Payment Status:");
+        System.out.println("  1. ALL");
+        System.out.println("  2. PAID");
+        System.out.println("  3. PENDING");
+        System.out.print("  Select payment status (1-3, Enter for ALL): ");
+        String pChoice = sc.nextLine().trim();
+        String payFilter = "ALL";
+        if (pChoice.equals("2")) payFilter = "PAID";
+        else if (pChoice.equals("3")) payFilter = "PENDING";
+
+        System.out.println();
+        System.out.println("  Filter by Deposit Status:");
+        System.out.println("  1. ALL");
+        System.out.println("  2. HELD (Currently in-house)");
+        System.out.println("  3. REFUNDED (Checked-out)");
+        System.out.println("  4. PENDING_COLLECTION (Awaiting check-in)");
+        System.out.print("  Select deposit status (1-4, Enter for ALL): ");
+        String dChoice = sc.nextLine().trim();
+        String depFilter = "ALL";
+        if (dChoice.equals("2")) depFilter = "HELD";
+        else if (dChoice.equals("3")) depFilter = "REFUNDED";
+        else if (dChoice.equals("4")) depFilter = "PENDING_COLLECTION";
+
+        FrontDeskControl.DepositPaymentReportResult result =
+                control.generateDepositPaymentReport(startDate, endDate, payFilter, depFilter);
+
+        // ── [REPORT DISPLAY] ──
+        ConsoleUtils.clearScreen();
+        System.out.println("============================================================================");
+        System.out.println("                   DEPOSIT & PAYMENT STATUS REPORT                          ");
+        System.out.println("============================================================================");
+        System.out.println("Generated Date : " + LocalDate.now().format(DATE_FMT));
+        System.out.printf ("Date Range     : %s to %s%n",
+                (startDate != null ? startDate.format(DATE_FMT) : "ALL"),
+                (endDate != null ? endDate.format(DATE_FMT) : "ALL"));
+        System.out.println("Payment Filter : " + payFilter);
+        System.out.println("Deposit Filter : " + depFilter);
+        System.out.println("Sorted by      : Attention Priority (Pending / Active Held First)");
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.printf("%-10s %-18s %-6s %-12s %-10s %-10s %-16s%n",
+                "Conf No", "Guest Name", "Room", "Charges", "Payment", "Deposit", "Deposit Status");
+        System.out.println("----------------------------------------------------------------------------");
+
+        FrontDeskControl.DepositPaymentReportItem[] items = result.getItems();
+        if (items.length == 0) {
+            System.out.println("  No records found matching the specified filter criteria.");
+        } else {
+            for (int i = 0; i < items.length; i++) {
+                FrontDeskControl.DepositPaymentReportItem item = items[i];
+                String attentionTag = (item.getPriorityScore() == 1) ? "*" : " ";
+                System.out.printf("%-10s %-18s %-6s RM%-10.2f %-10s RM%-8.2f %-16s %s%n",
+                        item.getConfirmationNo(),
+                        item.getGuestName(),
+                        item.getRoomNo(),
+                        item.getTotalCharges(),
+                        item.getPaymentStatus(),
+                        item.getDepositAmount(),
+                        item.getDepositStatus(),
+                        attentionTag);
+            }
+        }
+
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.println("  (* marks records requiring front desk attention)");
+        System.out.println();
+        System.out.println("FINANCIAL & AUDIT SUMMARY");
+        System.out.println("--------------------------------");
+        System.out.printf("Total Records Reviewed  : %d%n", result.getTotalRecords());
+        System.out.printf("Total Room Charges Paid : RM %.2f%n", result.getTotalPaidCharges());
+        System.out.printf("Pending Payment Charges : RM %.2f%n", result.getTotalPendingCharges());
+        System.out.printf("Total Deposits Held     : RM %.2f%n", result.getTotalDepositsHeld());
+        System.out.printf("Total Deposits Refunded : RM %.2f%n", result.getTotalDepositsRefunded());
+        System.out.printf("Active Attention Items  : %d%n", result.getAttentionCount());
+        pressEnterToContinue();
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // Helpers
     // ══════════════════════════════════════════════════════════════
 
@@ -704,7 +931,7 @@ public class FrontDeskBoundary {
             if (control.isValidIc(input)) {
                 return input;
             }
-            System.out.println("  [!] Invalid IC format. Must be in format XXXXXX-XX-XXXX (e.g. 990101-14-5678).");
+            System.out.println("  [!] Invalid IC format. Must be a 12-digit number (e.g. 990101145678).");
             System.out.println("      Please try again (or enter 0 to cancel).");
         }
     }
@@ -717,22 +944,26 @@ public class FrontDeskBoundary {
             if (control.isValidPhone(input)) {
                 return input;
             }
-            System.out.println("  [!] Invalid phone number format. Must start with 01X- followed by 7-8 digits (e.g. 012-3456789).");
+            System.out.println("  [!] Invalid phone number format. Must be 10-11 digits starting with 01 (e.g. 0123456789).");
+            System.out.println("      Please try again (or enter 0 to cancel).");
+        }
+    }
+
+    private String readEmailInput(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            String input = sc.nextLine().trim();
+            if (input.equals("0")) return "0";
+            if (control.isValidEmail(input)) {
+                return input;
+            }
+            System.out.println("  [!] Invalid email address format (e.g. user@email.com).");
             System.out.println("      Please try again (or enter 0 to cancel).");
         }
     }
 
     private String readGmailInput(String prompt) {
-        while (true) {
-            System.out.print(prompt);
-            String input = sc.nextLine().trim();
-            if (input.equals("0")) return "0";
-            if (control.isValidGmail(input)) {
-                return input;
-            }
-            System.out.println("  [!] Invalid Gmail address. Must be a valid address ending with @gmail.com (e.g. user@gmail.com).");
-            System.out.println("      Please try again (or enter 0 to cancel).");
-        }
+        return readEmailInput(prompt);
     }
 
     private void printReservationDetails(Reservation res, boolean showConfirmation) {

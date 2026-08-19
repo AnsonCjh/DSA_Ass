@@ -8,18 +8,22 @@ import dsa_ass.entity.Room;
 import dsa_ass.entity.RoomStatusLog;
 import dsa_ass.util.ConsoleUtils;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Scanner;
 
 /**
  * Boundary: HousekeepingBoundary
  *
  * Handles presentation and user interactions for Housekeeping & Task Log,
- * room inspections, status updates, history logs, and task records.
+ * room inspections, status updates, history logs, task records, and reports.
  */
 public class HousekeepingBoundary {
 
     private final HousekeepingControl control;
     private final Scanner sc;
+
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     public HousekeepingBoundary(HousekeepingControl control, Scanner sc) {
         this.control = control;
@@ -37,16 +41,18 @@ public class HousekeepingBoundary {
             System.out.println("  1. Cleaning Task Management");
             System.out.println("  2. Room Inspection & Status");
             System.out.println("  3. Task Records");
+            System.out.println("  4. Management Reports");
             System.out.println("  0. Back to Main Menu");
             printDivider();
             System.out.print("  Enter your choice: ");
             String choice = sc.nextLine().trim();
             System.out.println();
             switch (choice) {
-                case "1": cleaningTaskManagement(); control.autoSave(); break;
-                case "2": roomInspectionAndStatus(); control.autoSave(); break;
-                case "3": taskRecords();                               break;
-                case "0": back = true;                                 break;
+                case "1": cleaningTaskManagement();    control.autoSave(); break;
+                case "2": roomInspectionAndStatus();   control.autoSave(); break;
+                case "3": taskRecords();                                  break;
+                case "4": managementReports();                            break;
+                case "0": back = true;                                    break;
                 default:
                     System.out.println("  [!] Invalid option. Please try again.");
                     pressEnterToContinue();
@@ -141,8 +147,8 @@ public class HousekeepingBoundary {
         if (taskList.isEmpty()) {
             System.out.println("  No tasks found in stack.");
         } else {
-            System.out.printf("  %-10s %-8s %-15s %-8s %-14s %-12s %s%n",
-                    "Task ID", "Room", "Staff", "Priority", "Status", "Date", "Remarks");
+            System.out.printf("  %-10s %-8s %-15s %-8s %-14s %-12s %-8s %s%n",
+                    "Task ID", "Room", "Staff", "Priority", "Status", "Date", "Updated", "Remarks");
             printDivider();
             for (int i = 0; i < taskList.size(); i++) {
                 System.out.println("  " + taskList.get(i));
@@ -653,8 +659,8 @@ public class HousekeepingBoundary {
 
             ConsoleUtils.clearScreen();
             printHeader(label + " Tasks");
-            System.out.printf("  %-10s %-8s %-15s %-8s %-14s %-12s %s%n",
-                    "Task ID", "Room", "Staff", "Priority", "Status", "Date", "Remarks");
+            System.out.printf("  %-10s %-8s %-15s %-8s %-14s %-12s %-8s %s%n",
+                    "Task ID", "Room", "Staff", "Priority", "Status", "Date", "Updated", "Remarks");
             printDivider();
 
             Stack<CleaningTask> filtered = control.filterTasks(filter);
@@ -666,6 +672,238 @@ public class HousekeepingBoundary {
             System.out.printf("  Total: %d task(s)%n", filtered.size());
             pressEnterToContinue();
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 4. Management Reports
+    // ══════════════════════════════════════════════════════════════
+    public void generateCleaningTaskReport() {
+        managementReports();
+    }
+
+    private void managementReports() {
+        boolean back = false;
+        while (!back) {
+            ConsoleUtils.clearScreen();
+            printHeader("Housekeeping Management Reports");
+            System.out.println("  1. Room Cleaning Status Report");
+            System.out.println("  2. Housekeeping Staff Performance Report");
+            System.out.println("  0. Back");
+            printDivider();
+            System.out.print("  Enter choice: ");
+            String opt = sc.nextLine().trim();
+
+            switch (opt) {
+                case "1": displayRoomCleaningStatusReport(); break;
+                case "2": displayStaffPerformanceReport();   break;
+                case "0": back = true;                       break;
+                default:
+                    System.out.println("  [!] Invalid choice.");
+                    pressEnterToContinue();
+            }
+        }
+    }
+
+    // ── Report 1: Room Cleaning Status Report ───────────────────────
+    private void displayRoomCleaningStatusReport() {
+        printHeader("Room Cleaning Status Report Parameters");
+        System.out.println("  Enter filtering parameters (press Enter to include ALL):");
+        System.out.println();
+
+        // Room Type Filter
+        System.out.println("  Filter by Room Type:");
+        System.out.println("  1. ALL");
+        System.out.println("  2. SINGLE");
+        System.out.println("  3. STANDARD");
+        System.out.println("  4. DELUXE");
+        System.out.println("  5. SUITE");
+        System.out.println("  6. VILLA");
+        System.out.print("  Select room type (1-6, Enter for ALL): ");
+        String rtChoice = sc.nextLine().trim();
+        Room.RoomType roomTypeFilter = null;
+        switch (rtChoice) {
+            case "2": roomTypeFilter = Room.RoomType.SINGLE;   break;
+            case "3": roomTypeFilter = Room.RoomType.STANDARD; break;
+            case "4": roomTypeFilter = Room.RoomType.DELUXE;   break;
+            case "5": roomTypeFilter = Room.RoomType.SUITE;    break;
+            case "6": roomTypeFilter = Room.RoomType.VILLA;    break;
+        }
+
+        // Cleaning Status Filter
+        System.out.println();
+        System.out.println("  Filter by Cleaning Status:");
+        System.out.println("  1. ALL");
+        System.out.println("  2. DIRTY");
+        System.out.println("  3. CLEANING_IN_PROGRESS");
+        System.out.println("  4. INSPECTED");
+        System.out.println("  5. AVAILABLE / READY_FOR_CHECK_IN");
+        System.out.println("  6. UNDER_MAINTENANCE");
+        System.out.print("  Select status (1-6, Enter for ALL): ");
+        String stChoice = sc.nextLine().trim();
+        Room.RoomStatus statusFilter = null;
+        switch (stChoice) {
+            case "2": statusFilter = Room.RoomStatus.DIRTY;                break;
+            case "3": statusFilter = Room.RoomStatus.CLEANING_IN_PROGRESS; break;
+            case "4": statusFilter = Room.RoomStatus.INSPECTED;            break;
+            case "5": statusFilter = Room.RoomStatus.AVAILABLE;            break;
+            case "6": statusFilter = Room.RoomStatus.UNDER_MAINTENANCE;    break;
+        }
+
+        // Floor Filter
+        System.out.println();
+        System.out.println("  Filter by Floor / Wing:");
+        System.out.println("  1. ALL");
+        System.out.println("  2. Floor 1 (R101, R102...)");
+        System.out.println("  3. Floor 2 (R201, R202...)");
+        System.out.println("  4. Floor 3 (R301, R302...)");
+        System.out.println("  5. Villa Wing (V001, V002...)");
+        System.out.println("  6. Single Wing (S001, S002...)");
+        System.out.print("  Select floor (1-6, Enter for ALL): ");
+        String flChoice = sc.nextLine().trim();
+        String floorFilter = "ALL";
+        switch (flChoice) {
+            case "2": floorFilter = "Floor 1";     break;
+            case "3": floorFilter = "Floor 2";     break;
+            case "4": floorFilter = "Floor 3";     break;
+            case "5": floorFilter = "Villa Wing";  break;
+            case "6": floorFilter = "Single Wing"; break;
+        }
+
+        HousekeepingControl.RoomCleaningReportResult result =
+                control.generateRoomCleaningStatusReport(roomTypeFilter, statusFilter, floorFilter);
+
+        // ── [REPORT DISPLAY] ──
+        ConsoleUtils.clearScreen();
+        System.out.println("============================================================================");
+        System.out.println("                    ROOM CLEANING STATUS REPORT                             ");
+        System.out.println("============================================================================");
+        System.out.println("Generated Date : " + LocalDate.now().format(DATE_FMT));
+        System.out.println("Room Type      : " + (roomTypeFilter != null ? roomTypeFilter.name() : "ALL"));
+        System.out.println("Status Filter  : " + (statusFilter != null ? statusFilter.name() : "ALL"));
+        System.out.println("Floor / Wing   : " + floorFilter);
+        System.out.println("Sorted by      : Workflow Priority (Dirty -> Cleaning In Progress -> Inspected -> Ready)");
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.printf("%-8s %-12s %-11s %-22s %-15s %s%n",
+                "Room No", "Floor", "Room Type", "Cleaning Status", "Assigned Staff", "Updated");
+        System.out.println("----------------------------------------------------------------------------");
+
+        HousekeepingControl.RoomCleaningStatusItem[] items = result.getItems();
+        if (items.length == 0) {
+            System.out.println("  No rooms found matching the specified filter criteria.");
+        } else {
+            for (int i = 0; i < items.length; i++) {
+                HousekeepingControl.RoomCleaningStatusItem item = items[i];
+                System.out.printf("%-8s %-12s %-11s %-22s %-15s %s%n",
+                        item.getRoomNo(),
+                        item.getFloor(),
+                        item.getRoomType(),
+                        item.getCleaningStatus(),
+                        item.getAssignedStaff(),
+                        item.getLastUpdated());
+            }
+        }
+
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.println();
+        System.out.println("STATUS BREAKDOWN");
+        System.out.println("--------------------------------");
+        System.out.printf("Total Rooms           : %d%n", result.getTotalRooms());
+        System.out.printf("Dirty (Needs Clean)   : %d%n", result.getDirtyCount());
+        System.out.printf("Cleaning In Progress  : %d%n", result.getInProgressCount());
+        System.out.printf("Inspected (Verified)  : %d%n", result.getInspectedCount());
+        System.out.printf("Ready / Available     : %d%n", result.getAvailableCount());
+        System.out.printf("Occupied              : %d%n", result.getOccupiedCount());
+        System.out.printf("Under Maintenance     : %d%n", result.getMaintenanceCount());
+        System.out.printf("Room Readiness Rate   : %.2f%%%n", result.getReadinessRate());
+        pressEnterToContinue();
+    }
+
+    // ── Report 2: Housekeeping Staff Performance Report ────────────
+    private void displayStaffPerformanceReport() {
+        printHeader("Staff Performance Report Parameters");
+        System.out.println("  Enter filtering parameters (press Enter to include ALL):");
+        System.out.println();
+
+        System.out.print("  Start Date (DD/MM/YYYY, or Enter for ALL): ");
+        String startStr = sc.nextLine().trim();
+        LocalDate startDate = null;
+        if (!startStr.isEmpty()) {
+            try { startDate = LocalDate.parse(startStr, DATE_FMT); }
+            catch (DateTimeParseException e) { startDate = null; }
+        }
+
+        System.out.print("  End Date   (DD/MM/YYYY, or Enter for ALL): ");
+        String endStr = sc.nextLine().trim();
+        LocalDate endDate = null;
+        if (!endStr.isEmpty()) {
+            try { endDate = LocalDate.parse(endStr, DATE_FMT); }
+            catch (DateTimeParseException e) { endDate = null; }
+        }
+
+        System.out.println();
+        System.out.print("  Filter by Staff Name (or Enter for ALL): ");
+        String stChoice = sc.nextLine().trim();
+        String staffFilter = stChoice.isEmpty() ? "ALL" : stChoice;
+
+        System.out.println();
+        System.out.println("  Filter by Task Status:");
+        System.out.println("  1. ALL");
+        System.out.println("  2. COMPLETED");
+        System.out.println("  3. IN_PROGRESS");
+        System.out.println("  4. PENDING");
+        System.out.print("  Select status (1-4, Enter for ALL): ");
+        String sChoice = sc.nextLine().trim();
+        CleaningTask.TaskStatus taskStatusFilter = null;
+        if (sChoice.equals("2")) taskStatusFilter = CleaningTask.TaskStatus.COMPLETED;
+        else if (sChoice.equals("3")) taskStatusFilter = CleaningTask.TaskStatus.IN_PROGRESS;
+        else if (sChoice.equals("4")) taskStatusFilter = CleaningTask.TaskStatus.PENDING;
+
+        HousekeepingControl.StaffPerformanceReportResult result =
+                control.generateStaffPerformanceReport(startDate, endDate, staffFilter, taskStatusFilter);
+
+        // ── [REPORT DISPLAY] ──
+        ConsoleUtils.clearScreen();
+        System.out.println("============================================================================");
+        System.out.println("                 HOUSEKEEPING STAFF PERFORMANCE REPORT                      ");
+        System.out.println("============================================================================");
+        System.out.println("Generated Date : " + LocalDate.now().format(DATE_FMT));
+        System.out.printf ("Date Range     : %s to %s%n",
+                (startDate != null ? startDate.format(DATE_FMT) : "ALL"),
+                (endDate != null ? endDate.format(DATE_FMT) : "ALL"));
+        System.out.println("Staff Filter   : " + staffFilter);
+        System.out.println("Status Filter  : " + (taskStatusFilter != null ? taskStatusFilter.name() : "ALL"));
+        System.out.println("Sorted by      : Completed Tasks Count (Highest to Lowest)");
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.printf("%-6s %-16s %-12s %-12s %-10s %-14s %s%n",
+                "Rank", "Staff Name", "Completed", "In Progress", "Pending", "Total Handled", "Completion %");
+        System.out.println("----------------------------------------------------------------------------");
+
+        HousekeepingControl.StaffPerformanceItem[] items = result.getItems();
+        if (items.length == 0) {
+            System.out.println("  No staff performance records found matching the filter criteria.");
+        } else {
+            for (int i = 0; i < items.length; i++) {
+                HousekeepingControl.StaffPerformanceItem item = items[i];
+                System.out.printf("#%-5d %-16s %-12d %-12d %-10d %-14d %.2f%%%n",
+                        item.getRank(),
+                        item.getStaffName(),
+                        item.getCompletedTasks(),
+                        item.getInProgressTasks(),
+                        item.getPendingTasks(),
+                        item.getTotalHandled(),
+                        item.getCompletionRate());
+            }
+        }
+
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.println();
+        System.out.println("PERFORMANCE SUMMARY");
+        System.out.println("--------------------------------");
+        System.out.printf("Top Performer              : %s%n", result.getTopPerformer());
+        System.out.printf("Total Tasks Handled        : %d%n", result.getOverallTotalTasks());
+        System.out.printf("Total Tasks Completed      : %d%n", result.getOverallCompletedTasks());
+        System.out.printf("Overall Efficiency Rate    : %.2f%%%n", result.getOverallEfficiencyRate());
+        pressEnterToContinue();
     }
 
     // ══════════════════════════════════════════════════════════════

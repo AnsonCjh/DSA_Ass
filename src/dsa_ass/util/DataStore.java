@@ -265,7 +265,8 @@ public class DataStore {
                          + t.getPriority().name()    + SEP
                          + t.getStatus().name()      + SEP
                          + t.getAssignedDate()       + SEP
-                         + esc(t.getRemarks()));
+                         + esc(t.getRemarks())       + SEP
+                         + esc(t.getUpdatedTime()));
             }
         } catch (IOException e) {
             System.out.println("  [!] Could not save tasks: " + e.getMessage());
@@ -287,12 +288,15 @@ public class DataStore {
                 if (line.isEmpty()) continue;
                 String[] p = line.split(SEP_REGEX, -1);
                 if (p.length < 7) continue;
+                String updatedTime = (p.length > 7 && !p[7].isEmpty()) ? p[7] : "09:00";
                 CleaningTask t = new CleaningTask(
                         p[0], p[1], p[2],
                         CleaningTask.TaskPriority.valueOf(p[3]),
                         LocalDate.parse(p[5]),
-                        p[6]);
+                        p[6],
+                        updatedTime);
                 t.setStatus(CleaningTask.TaskStatus.valueOf(p[4]));
+                t.setUpdatedTime(updatedTime);
                 list.push(t);
                 max = Math.max(max, parseTrailingNum(p[0]));
             }
