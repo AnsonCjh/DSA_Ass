@@ -55,7 +55,9 @@ public class WalkInRegistrationControl {
     }
 
     public boolean isValidPhone(String phone) {
-        return phone != null && phone.matches("^01\\d-?\\d{7,8}$");
+        if (phone == null) return false;
+        String digitsOnly = phone.replace("-", "");
+        return digitsOnly.matches("^\\d{10,11}$");
     }
 
     public boolean isValidEmail(String email) {
@@ -216,13 +218,12 @@ public class WalkInRegistrationControl {
             }
         }
         int nextIdNum = Math.max(maxIdNum + 1, resCounter);
-        resCounter = nextIdNum + 1;
         return String.format("R%03d", nextIdNum);
     }
 
     public String generateConfirmationNumber(String resId) {
         int idNum = parseTrailingNum(resId);
-        return String.format("%08d", idNum);
+        return String.format("12345%03d", idNum);
     }
 
     public Reservation confirmAndCreateReservation(String resId, String confNo, Guest guest,
@@ -235,6 +236,8 @@ public class WalkInRegistrationControl {
         reservationList.add(res);
         selectedRoom.setStatus(Room.RoomStatus.OCCUPIED);
         walkInResIds.enqueue(resId);
+        int idNum = parseTrailingNum(resId);
+        resCounter = Math.max(resCounter, idNum + 1);
         autoSave();
         return res;
     }

@@ -74,13 +74,13 @@ public class WalkInRegistrationBoundary {
         String name = readNonEmptyInput("  Full Name         : ");
         if (name.equals("0")) { cancelled(); return; }
 
-        String ic = readIcInput("  IC Number (12 digits, e.g. 990101145678) : ");
+        String ic = readIcInput("  IC Number         : ");
         if (ic.equals("0")) { cancelled(); return; }
 
-        String phone = readPhoneInput("  Phone Number (10-11 digits, e.g. 0123456789) : ");
+        String phone = readPhoneInput("  Phone Number      : ");
         if (phone.equals("0")) { cancelled(); return; }
 
-        String email = readEmailInput("  Email Address (e.g. user@email.com) : ");
+        String email = readEmailInput("  Email Address     : ");
         if (email.equals("0")) { cancelled(); return; }
 
         String nationality = readNonEmptyInput("  Nationality       : ");
@@ -203,9 +203,7 @@ public class WalkInRegistrationBoundary {
         boolean bookingFlowActive = true;
 
         while (bookingFlowActive) {
-            System.out.println();
-            printDivider();
-            System.out.println("  Select Room Type:");
+            printHeader("Select Room Type");
             System.out.println("  1. SINGLE     (RM  99.00/night, max 1 guest)");
             System.out.println("  2. STANDARD   (RM 180.00/night, max 2 guests)");
             System.out.println("  3. DELUXE     (RM 280.00/night, max 4 guests)");
@@ -218,6 +216,7 @@ public class WalkInRegistrationBoundary {
 
             if (typeChoice.equals("0")) {
                 System.out.println("  Booking cancelled. Guest remains in queue.");
+                pressEnterToContinue();
                 return false;
             }
 
@@ -230,6 +229,7 @@ public class WalkInRegistrationBoundary {
                 case "5": roomType = Room.RoomType.VILLA;    break;
                 default:
                     System.out.println("  [!] Invalid room type. Please select 1 - 5.");
+                    pressEnterToContinue();
                     continue;
             }
 
@@ -327,11 +327,18 @@ public class WalkInRegistrationBoundary {
                     System.out.println("  ============================================");
                     System.out.println("  Full room payment is required to confirm booking.");
                     System.out.println("  ============================================");
-                    System.out.println();
-                    System.out.print("  Confirm reservation? (Y/N): ");
-                    String confirm = sc.nextLine().trim();
-                    if (!confirm.equalsIgnoreCase("Y")) {
+                    String confirm;
+                    while (true) {
+                        System.out.print("  Confirm reservation? (Y/N): ");
+                        confirm = sc.nextLine().trim();
+                        if (confirm.equalsIgnoreCase("Y") || confirm.equalsIgnoreCase("N")) {
+                            break;
+                        }
+                        System.out.println("  [!] Invalid input. Please enter 'Y' to confirm or 'N' to cancel.");
+                    }
+                    if (confirm.equalsIgnoreCase("N")) {
                         System.out.println("  Reservation not confirmed. Guest remains in queue.");
+                        pressEnterToContinue();
                         return false;
                     }
 
@@ -829,7 +836,7 @@ public class WalkInRegistrationBoundary {
             if (control.isValidPhone(input)) {
                 return input;
             }
-            System.out.println("  [!] Invalid phone number format. Must be 10-11 digits starting with 01 (e.g. 0123456789).");
+            System.out.println("  [!] Invalid phone number format. Must be 10-11 digits (e.g. 0123456789).");
             System.out.println("      Please try again (or enter 0 to cancel).");
         }
     }

@@ -64,7 +64,9 @@ public class FrontDeskControl {
     }
 
     public boolean isValidPhone(String phone) {
-        return phone != null && phone.matches("^01\\d-?\\d{7,8}$");
+        if (phone == null) return false;
+        String digitsOnly = phone.replace("-", "");
+        return digitsOnly.matches("^\\d{10,11}$");
     }
 
     public boolean isValidEmail(String email) {

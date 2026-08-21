@@ -125,11 +125,11 @@ public class DSA_Ass {
                     new HousekeepingBoundary(housekeepingControl, sc).showMenu();
                     DataStore.saveAll(guestList, roomList, reservationList, taskList);
                     break;
-                case "4":
+                case "0":
                     exit = true;
                     break;
                 default:
-                    System.out.println("  [!] Invalid option. Please enter 1 - 4.");
+                    System.out.println("  [!] Invalid option. Please enter 0 - 3.");
                     pause();
             }
         }
@@ -144,7 +144,7 @@ public class DSA_Ass {
         System.out.println("  1. Walk-In Registration Module");
         System.out.println("  2. Front Desk Module");
         System.out.println("  3. Housekeeping Module");
-        System.out.println("  4. Exit");
+        System.out.println("  0. Exit");
         System.out.println("  ============================================");
     }
 

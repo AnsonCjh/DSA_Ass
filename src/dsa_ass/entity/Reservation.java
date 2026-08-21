@@ -10,7 +10,7 @@ public class Reservation implements Comparable<Reservation> {
     public enum ReservationStatus { PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED }
 
     private String reservationId;
-    private String confirmationNo;   // 8-digit confirmation number (e.g. "00000001")
+    private String confirmationNo;   // 8-digit confirmation number (e.g. "12345001")
     private String guestId;
     private String roomNo;
     private LocalDate checkInDate;

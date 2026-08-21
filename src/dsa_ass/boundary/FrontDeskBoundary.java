@@ -266,7 +266,7 @@ public class FrontDeskBoundary {
                 break;
             case "2":
                 System.out.println("  Current Phone: " + targetGuest.getPhone());
-                String phone = readPhoneInput("  Enter New Phone Number (10-11 digits, e.g. 0123456789): ");
+                String phone = readPhoneInput("  Enter New Phone Number: ");
                 if (!phone.equals("0")) {
                     targetGuest.setPhone(phone);
                     control.autoSave();
@@ -275,7 +275,7 @@ public class FrontDeskBoundary {
                 break;
             case "3":
                 System.out.println("  Current Email: " + targetGuest.getEmail());
-                String email = readEmailInput("  Enter New Email Address (e.g. user@email.com): ");
+                String email = readEmailInput("  Enter New Email Address: ");
                 if (!email.equals("0")) {
                     targetGuest.setEmail(email);
                     control.autoSave();
@@ -284,7 +284,7 @@ public class FrontDeskBoundary {
                 break;
             case "4":
                 System.out.println("  Current IC / Passport: " + targetGuest.getIcNo());
-                String ic = readIcInput("  Enter New IC Number (12 digits, e.g. 990101145678): ");
+                String ic = readIcInput("  Enter New IC Number: ");
                 if (!ic.equals("0")) {
                     targetGuest.setIcNo(ic);
                     control.autoSave();
@@ -944,7 +944,7 @@ public class FrontDeskBoundary {
             if (control.isValidPhone(input)) {
                 return input;
             }
-            System.out.println("  [!] Invalid phone number format. Must be 10-11 digits starting with 01 (e.g. 0123456789).");
+            System.out.println("  [!] Invalid phone number format. Must be 10-11 digits (e.g. 0123456789).");
             System.out.println("      Please try again (or enter 0 to cancel).");
         }
     }

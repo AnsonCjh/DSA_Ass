@@ -186,7 +186,7 @@ public class BinarySearchTree<T extends Comparable<T>> {
      * Walks the entire BST (left → node → right) comparing each
      * Reservation's confirmationNo until a match is found.
      *
-     * @param confNo 8-digit confirmation number string (e.g. "00000001")
+     * @param confNo 8-digit confirmation number string (e.g. "12345001")
      * @return the matching Reservation, or null if not found
      */
     public dsa_ass.entity.Reservation searchByConfirmation(String confNo) {
