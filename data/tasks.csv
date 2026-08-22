@@ -1,0 +1,13 @@
+T0001|R102|kent|COMPLETED|2026-08-22|no|16:57
+T0002|S001|0|PENDING|2026-08-22|Checkout Cleaning|17:40
+T0003|S001|0|PENDING|2026-08-22|Checkout Cleaning|20:08
+T0004|R201|Unassigned|PENDING|2026-08-22|Checkout Cleaning for gay|20:23
+T0005|R201|junkang|PENDING|2026-08-22|no|20:26
+T0006|R101|Unassigned|COMPLETED|2026-08-22|Checkout Cleaning for Wong Hao Xuan|22:21
+T0007|R102|0|PENDING|2026-08-22|Checkout Cleaning|20:29
+T0008|V001|Unassigned|PENDING|2026-08-22|Checkout Cleaning for jason|20:31
+T0009|V001|Unassigned|PENDING|2026-08-22|Checkout Cleaning for lih|20:39
+T0010|V002|Unassigned|COMPLETED|2026-08-22|Checkout Cleaning for wong hx|20:53
+T0011|V002|Unassigned|COMPLETED|2026-08-22|Checkout Cleaning for eason|21:09
+T0012|S002|Unassigned|PENDING|2026-08-22|Checkout Cleaning for hxuan|21:49
+T0013|R202|haoxuan|IN_PROGRESS|2026-08-22|no|22:16

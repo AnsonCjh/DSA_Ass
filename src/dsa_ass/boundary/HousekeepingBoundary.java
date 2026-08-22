@@ -101,7 +101,8 @@ public class HousekeepingBoundary {
         }
         System.out.println();
 
-        System.out.print("  Room Number       (or 0 to cancel): ");
+        System.out.println("  (0 = back)");
+        System.out.print("  Room Number   : ");
         String roomNo = sc.nextLine().trim().toUpperCase();
         if (roomNo.equals("0")) {
             System.out.println("  Task creation cancelled.");
@@ -109,16 +110,38 @@ public class HousekeepingBoundary {
             return;
         }
 
+        System.out.print("  Assigned Staff    : ");
+        String staff = sc.nextLine().trim();
+        if (staff.isEmpty()) staff = "Unassigned";
+
         Room targetRoom = control.findRoom(roomNo);
+        if (targetRoom == null && roomNo.contains("O")) {
+            targetRoom = control.findRoom(roomNo.replace('O', '0'));
+            if (targetRoom != null) {
+                roomNo = targetRoom.getRoomNo();
+            }
+        }
+
         if (targetRoom == null) {
             System.out.println("  [!] Room [" + roomNo + "] not found in system.");
             pressEnterToContinue();
             return;
         }
 
-        System.out.print("  Assigned Staff    : ");
-        String staff = sc.nextLine().trim();
-        if (staff.isEmpty()) staff = "Unassigned";
+        CleaningTask activeTask = control.findActiveTaskByRoom(roomNo);
+        if (activeTask != null) {
+            System.out.println("  [!] Room already has an active cleaning task: "
+                    + activeTask.getTaskId() + " (" + activeTask.getStatus() + ")");
+            pressEnterToContinue();
+            return;
+        }
+
+        if (targetRoom.getStatus() != Room.RoomStatus.DIRTY) {
+            System.out.println("  [!] A cleaning task can only be created for a DIRTY room.");
+            System.out.println("      Current room status: " + targetRoom.getStatus());
+            pressEnterToContinue();
+            return;
+        }
 
         System.out.println("  Priority (1=LOW, 2=MEDIUM, 3=HIGH):");
         System.out.print("  Select: ");
@@ -160,7 +183,7 @@ public class HousekeepingBoundary {
     }
 
     private void updateTaskStatus() {
-        printHeader("Update Task Status");
+        printHeader("Update Task Status - Sequential Workflow");
         System.out.print("  Enter Task ID (or 0 to cancel): ");
         String taskId = sc.nextLine().trim().toUpperCase();
         if (taskId.equals("0")) {
@@ -175,57 +198,57 @@ public class HousekeepingBoundary {
             return;
         }
 
+        Room room = control.findRoom(task.getRoomNo());
+        String roomStatusStr = (room != null) ? room.getStatus().name() : "N/A";
+
         System.out.printf("  Task ID     : %s%n", task.getTaskId());
         System.out.printf("  Room Number : %s%n", task.getRoomNo());
         System.out.printf("  Staff       : %s%n", task.getAssignedStaff());
-        System.out.printf("  Current Task Status : %s%n", task.getStatus());
+        System.out.printf("  Task Status : %s%n", task.getStatus());
+        System.out.printf("  Room Status : %s%n", roomStatusStr);
         System.out.println();
-        System.out.println("  Select new task status:");
-        System.out.println("  1. PENDING");
-        System.out.println("  2. IN_PROGRESS  (updates Room to CLEANING_IN_PROGRESS)");
-        System.out.println("  3. COMPLETED    (marks Task COMPLETED; Room ready for inspection)");
-        System.out.println("  0. Cancel");
-        printDivider();
-        System.out.print("  Select new status: ");
-        String statusChoice = sc.nextLine().trim();
 
-        Room room = control.findRoom(task.getRoomNo());
-        Room.RoomStatus oldRoomStatus = room != null ? room.getStatus() : null;
-
-        switch (statusChoice) {
-            case "1":
-                task.setStatus(CleaningTask.TaskStatus.PENDING);
-                System.out.println("  Task status set to: PENDING");
-                break;
-            case "2":
+        if (task.getStatus() == CleaningTask.TaskStatus.PENDING) {
+            System.out.println("  Next allowed step: PENDING -> IN_PROGRESS");
+            if (room != null) {
+                System.out.printf ("  Room will sync   : %s -> CLEANING_IN_PROGRESS%n", room.getStatus());
+            }
+            System.out.println();
+            System.out.print("  Confirm start cleaning (PENDING -> IN_PROGRESS)? (Y/N): ");
+            String choice = sc.nextLine().trim().toUpperCase();
+            if (choice.equals("Y") || choice.equals("YES") || choice.equals("1")) {
                 task.setStatus(CleaningTask.TaskStatus.IN_PROGRESS);
-                System.out.println("  Task status set to: IN_PROGRESS");
-                if (room != null && (room.getStatus() == Room.RoomStatus.DIRTY
-                        || room.getStatus() == Room.RoomStatus.UNDER_MAINTENANCE)) {
+                if (room != null) {
+                    Room.RoomStatus oldRoomStatus = room.getStatus();
                     room.setStatus(Room.RoomStatus.CLEANING_IN_PROGRESS);
                     control.logRoomStatus(room.getRoomNo(), oldRoomStatus, Room.RoomStatus.CLEANING_IN_PROGRESS,
                             "Cleaning began (Task " + task.getTaskId() + ")");
                     System.out.printf("  [Room Sync] Room %s status: %s -> CLEANING_IN_PROGRESS%n",
                             room.getRoomNo(), oldRoomStatus);
                 }
-                break;
-            case "3":
-                task.setStatus(CleaningTask.TaskStatus.COMPLETED);
-                System.out.println("  Task status set to: COMPLETED");
-                System.out.printf ("  [Notice] Task %s is COMPLETED. Room %s (Status: %s) is now ready for supervisor inspection under 'Inspect Room'.%n",
-                        task.getTaskId(), task.getRoomNo(), (room != null ? room.getStatus() : "CLEANING_IN_PROGRESS"));
-                break;
-            case "0":
+                System.out.println("  [✓] Task status updated: PENDING -> IN_PROGRESS");
+            } else {
                 System.out.println("  Status update cancelled.");
-                pressEnterToContinue();
-                return;
-            default:
-                System.out.println("  [!] Invalid choice.");
-                pressEnterToContinue();
-                return;
+            }
+        } else if (task.getStatus() == CleaningTask.TaskStatus.IN_PROGRESS) {
+            System.out.println("  Next allowed step: IN_PROGRESS -> COMPLETED");
+            System.out.println();
+            System.out.print("  Confirm finish cleaning (IN_PROGRESS -> COMPLETED)? (Y/N): ");
+            String choice = sc.nextLine().trim().toUpperCase();
+            if (choice.equals("Y") || choice.equals("YES") || choice.equals("1")) {
+                task.setStatus(CleaningTask.TaskStatus.COMPLETED);
+                System.out.println("  [✓] Task status updated: IN_PROGRESS -> COMPLETED");
+                System.out.printf("  [Notice] Task %s is COMPLETED. Room %s (Status: %s) is now ready for supervisor inspection under 'Inspect Room'.%n",
+                        task.getTaskId(), task.getRoomNo(), (room != null ? room.getStatus() : "CLEANING_IN_PROGRESS"));
+            } else {
+                System.out.println("  Status update cancelled.");
+            }
+        } else if (task.getStatus() == CleaningTask.TaskStatus.COMPLETED) {
+            System.out.println("  [!] Task is already COMPLETED.");
+            System.out.printf("  Room %s (Status: %s) is waiting for supervisor inspection under 'Room Inspection & Status -> 1. Inspect Room'.%n",
+                    task.getRoomNo(), roomStatusStr);
         }
 
-        System.out.println("  [✓] Task updated successfully!");
         pressEnterToContinue();
     }
 
@@ -256,7 +279,7 @@ public class HousekeepingBoundary {
             ConsoleUtils.clearScreen();
             printHeader("Room Inspection & Status");
             System.out.println("  1. Inspect Room");
-            System.out.println("  2. Update Room Status");
+            System.out.println("  2. Mark Inspected Room Ready for Check-In");
             System.out.println("  3. View Current Status");
             System.out.println("  4. Undo Latest Status Update");
             System.out.println("  5. View Status History");
@@ -266,12 +289,12 @@ public class HousekeepingBoundary {
             String choice = sc.nextLine().trim();
             System.out.println();
             switch (choice) {
-                case "1": inspectRoom();                control.autoSave(); break;
-                case "2": updateRoomStatus();           control.autoSave(); break;
-                case "3": viewCurrentStatus();                             break;
-                case "4": undoLatestStatusUpdate();     control.autoSave(); break;
-                case "5": viewStatusHistory();                             break;
-                case "0": back = true;                                     break;
+                case "1": inspectRoom();                           control.autoSave(); break;
+                case "2": markInspectedRoomReadyForCheckIn();      control.autoSave(); break;
+                case "3": viewCurrentStatus();                                        break;
+                case "4": undoLatestStatusUpdate();                control.autoSave(); break;
+                case "5": viewStatusHistory();                                        break;
+                case "0": back = true;                                                break;
                 default:
                     System.out.println("  [!] Invalid option.");
                     pressEnterToContinue();
@@ -379,23 +402,9 @@ public class HousekeepingBoundary {
             System.out.println("             Inspection Passed!");
             System.out.println("  ============================================");
             System.out.printf ("  Room %s%n", matchedRoom.getRoomNo());
-            System.out.printf ("  %s → INSPECTED%n", prevStatus);
+            System.out.printf ("  %s -> INSPECTED%n", prevStatus);
             System.out.println("  ============================================");
             System.out.println("  [✓] Room status updated to INSPECTED.");
-            System.out.println("  [Linear ADT] Status logged to history stack.");
-
-            System.out.println();
-            System.out.print("  Mark room as AVAILABLE for Front Desk now? (Y/N): ");
-            if (sc.nextLine().trim().equalsIgnoreCase("Y")) {
-                matchedRoom.setStatus(Room.RoomStatus.AVAILABLE);
-                control.logRoomStatus(matchedRoom.getRoomNo(), Room.RoomStatus.INSPECTED, Room.RoomStatus.AVAILABLE,
-                        "Supervisor confirmed room is available");
-
-                System.out.println();
-                System.out.printf ("  Room %s%n", matchedRoom.getRoomNo());
-                System.out.println("  INSPECTED → AVAILABLE");
-                System.out.println("  [✓] Front desk can now see: " + matchedRoom.getRoomNo() + " | AVAILABLE");
-            }
         } else {
             System.out.println();
             System.out.printf ("  [!] Room %s failed inspection.%n", matchedRoom.getRoomNo());
@@ -413,7 +422,7 @@ public class HousekeepingBoundary {
 
                 System.out.println();
                 System.out.printf ("  Room %s%n", matchedRoom.getRoomNo());
-                System.out.printf ("  %s → DIRTY%n", prevStatus);
+                System.out.printf ("  %s -> DIRTY%n", prevStatus);
 
                 System.out.print("  Auto-create new re-cleaning task? (Y/N): ");
                 if (sc.nextLine().trim().equalsIgnoreCase("Y")) {
@@ -429,6 +438,75 @@ public class HousekeepingBoundary {
                 System.out.printf("  Room %s remains CLEANING_IN_PROGRESS.%n", matchedRoom.getRoomNo());
             }
         }
+        pressEnterToContinue();
+    }
+
+    public void markInspectedRoomReadyForCheckIn() {
+        printHeader("Mark Room Ready for Check-In");
+        System.out.println("  Only INSPECTED rooms can be released to the Front Desk.");
+        System.out.println();
+
+        Queue<Room> rooms = control.getRoomList();
+        int inspectedCount = 0;
+        for (int i = 0; i < rooms.size(); i++) {
+            Room r = rooms.get(i);
+            if (r.getStatus() == Room.RoomStatus.INSPECTED) {
+                System.out.printf("  %-8s %-12s %-24s%n", r.getRoomNo(), r.getRoomType(), r.getStatus());
+                inspectedCount++;
+            }
+        }
+
+        if (inspectedCount == 0) {
+            System.out.println("  No rooms currently in INSPECTED status waiting for release.");
+            printDivider();
+            pressEnterToContinue();
+            return;
+        }
+
+        printDivider();
+        System.out.println();
+        System.out.print("  Enter Room Number (or 0 to cancel): ");
+        String roomNo = sc.nextLine().trim().toUpperCase();
+        if (roomNo.equals("0")) {
+            System.out.println("  Operation cancelled.");
+            pressEnterToContinue();
+            return;
+        }
+
+        Room targetRoom = control.findRoom(roomNo);
+        if (targetRoom == null && roomNo.contains("O")) {
+            targetRoom = control.findRoom(roomNo.replace('O', '0'));
+            if (targetRoom != null) {
+                roomNo = targetRoom.getRoomNo();
+            }
+        }
+
+        if (targetRoom == null) {
+            System.out.println("  [!] Room [" + roomNo + "] not found in system.");
+            pressEnterToContinue();
+            return;
+        }
+
+        if (targetRoom.getStatus() != Room.RoomStatus.INSPECTED) {
+            System.out.printf("  [!] Room %s is currently '%s'. Only INSPECTED rooms can be marked READY_FOR_CHECK_IN.%n",
+                    targetRoom.getRoomNo(), targetRoom.getStatus());
+            pressEnterToContinue();
+            return;
+        }
+
+        targetRoom.setStatus(Room.RoomStatus.READY_FOR_CHECK_IN);
+        control.logRoomStatus(targetRoom.getRoomNo(), Room.RoomStatus.INSPECTED, Room.RoomStatus.READY_FOR_CHECK_IN,
+                "Supervisor released room - marked READY_FOR_CHECK_IN");
+
+        System.out.println();
+        System.out.println("  ============================================");
+        System.out.println("          Room Released for Check-In!         ");
+        System.out.println("  ============================================");
+        System.out.printf ("  Room %s%n", targetRoom.getRoomNo());
+        System.out.println("  INSPECTED -> READY_FOR_CHECK_IN");
+        System.out.println("  ============================================");
+        System.out.println("  [✓] Room status updated to READY_FOR_CHECK_IN.");
+        System.out.println("  [✓] Front Desk can now see this room as READY_FOR_CHECK_IN.");
         pressEnterToContinue();
     }
 
@@ -462,7 +540,7 @@ public class HousekeepingBoundary {
         System.out.println("  1. DIRTY");
         System.out.println("  2. CLEANING_IN_PROGRESS");
         System.out.println("  3. INSPECTED");
-        System.out.println("  4. AVAILABLE");
+        System.out.println("  4. READY_FOR_CHECK_IN");
         System.out.println("  0. Cancel");
         printDivider();
         System.out.print("  Enter choice (1 - 4): ");
@@ -473,7 +551,7 @@ public class HousekeepingBoundary {
             case "1": newStatus = Room.RoomStatus.DIRTY;                break;
             case "2": newStatus = Room.RoomStatus.CLEANING_IN_PROGRESS; break;
             case "3": newStatus = Room.RoomStatus.INSPECTED;            break;
-            case "4": newStatus = Room.RoomStatus.AVAILABLE;            break;
+            case "4": newStatus = Room.RoomStatus.READY_FOR_CHECK_IN;   break;
             case "0":
                 System.out.println("  Update cancelled.");
                 pressEnterToContinue();
@@ -513,8 +591,8 @@ public class HousekeepingBoundary {
 
     public void viewCurrentStatus() {
         printHeader("Current Room Status Summary");
-        System.out.printf("  %-8s %-12s %-14s %-9s %-24s%n",
-                "Room No", "Type", "Price/Night", "Capacity", "Status");
+        System.out.printf("  %-8s %-20s %-24s %-20s%n",
+                "Room No", "Room Availability", "Room Status", "Cleaning Task Status");
         printDivider();
 
         int dirty = 0, inProg = 0, inspected = 0, ready = 0, occupied = 0, other = 0;
@@ -522,15 +600,36 @@ public class HousekeepingBoundary {
 
         for (int i = 0; i < rooms.size(); i++) {
             Room r = rooms.get(i);
-            System.out.printf("  %-8s %-12s RM%-12.2f %-9d %-24s%n",
-                    r.getRoomNo(), r.getRoomType(), r.getPricePerNight(), r.getCapacity(), r.getStatus());
+            CleaningTask latestTask = control.findLatestTaskForRoom(r.getRoomNo());
 
-            if (r.getStatus() == Room.RoomStatus.DIRTY) dirty++;
-            else if (r.getStatus() == Room.RoomStatus.CLEANING_IN_PROGRESS) inProg++;
-            else if (r.getStatus() == Room.RoomStatus.INSPECTED) inspected++;
-            else if (r.getStatus() == Room.RoomStatus.AVAILABLE || r.getStatus() == Room.RoomStatus.READY_FOR_CHECK_IN) ready++;
-            else if (r.getStatus() == Room.RoomStatus.OCCUPIED) occupied++;
-            else other++;
+            String availStr;
+            String roomStatusStr;
+            String taskStatusStr;
+
+            if (r.getStatus() == Room.RoomStatus.OCCUPIED) {
+                availStr = "OCCUPIED";
+                roomStatusStr = "______";
+                taskStatusStr = "_______";
+                occupied++;
+            } else if (r.getStatus() == Room.RoomStatus.UNDER_MAINTENANCE) {
+                availStr = "MAINTENANCE";
+                roomStatusStr = "UNDER_MAINTENANCE";
+                taskStatusStr = (latestTask != null) ? latestTask.getStatus().name() : "_______";
+                other++;
+            } else {
+                availStr = "AVAILABLE";
+                roomStatusStr = r.getStatus().name();
+                taskStatusStr = (latestTask != null) ? latestTask.getStatus().name() : "_______";
+
+                if (r.getStatus() == Room.RoomStatus.DIRTY) dirty++;
+                else if (r.getStatus() == Room.RoomStatus.CLEANING_IN_PROGRESS) inProg++;
+                else if (r.getStatus() == Room.RoomStatus.INSPECTED) inspected++;
+                else if (r.getStatus() == Room.RoomStatus.READY_FOR_CHECK_IN || r.getStatus() == Room.RoomStatus.AVAILABLE) ready++;
+                else other++;
+            }
+
+            System.out.printf("  %-8s %-20s %-24s %-20s%n",
+                    r.getRoomNo(), availStr, roomStatusStr, taskStatusStr);
         }
 
         printDivider();
@@ -538,7 +637,7 @@ public class HousekeepingBoundary {
         System.out.printf ("  DIRTY                 : %d%n", dirty);
         System.out.printf ("  CLEANING_IN_PROGRESS  : %d%n", inProg);
         System.out.printf ("  INSPECTED             : %d%n", inspected);
-        System.out.printf ("  AVAILABLE             : %d%n", ready);
+        System.out.printf ("  READY_FOR_CHECK_IN    : %d%n", ready);
         System.out.printf ("  OCCUPIED              : %d%n", occupied);
         if (other > 0) System.out.printf ("  OTHER / MAINTENANCE   : %d%n", other);
         printDivider();

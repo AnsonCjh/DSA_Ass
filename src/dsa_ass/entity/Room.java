@@ -34,7 +34,7 @@ public class Room {
     public void setPricePerNight(double pricePerNight)  { this.pricePerNight = pricePerNight; }
 
     public boolean isAvailable() {
-        return status == RoomStatus.READY_FOR_CHECK_IN || status == RoomStatus.AVAILABLE;
+        return status != RoomStatus.OCCUPIED && status != RoomStatus.UNDER_MAINTENANCE;
     }
 
     @Override

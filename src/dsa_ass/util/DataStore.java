@@ -148,9 +148,6 @@ public class DataStore {
                 Room.RoomStatus status;
                 try {
                     status = Room.RoomStatus.valueOf(p[4]);
-                    if (status == Room.RoomStatus.READY_FOR_CHECK_IN) {
-                        status = Room.RoomStatus.AVAILABLE;
-                    }
                 } catch (IllegalArgumentException e) {
                     status = Room.RoomStatus.AVAILABLE;
                 }
@@ -262,7 +259,6 @@ public class DataStore {
                 pw.println(esc(t.getTaskId())        + SEP
                          + esc(t.getRoomNo())        + SEP
                          + esc(t.getAssignedStaff()) + SEP
-                         + t.getPriority().name()    + SEP
                          + t.getStatus().name()      + SEP
                          + t.getAssignedDate()       + SEP
                          + esc(t.getRemarks())       + SEP
@@ -275,6 +271,8 @@ public class DataStore {
 
     /**
      * Reads tasks.csv and appends into list.
+     * Supports both 7-field (TaskId|RoomNo|Staff|Status|Date|Remarks|Time)
+     * and 8-field (TaskId|RoomNo|Staff|Priority|Status|Date|Remarks|Time) formats.
      * @return highest numeric suffix found in task IDs.
      */
     public static int loadTasks(Stack<CleaningTask> list) {
@@ -287,16 +285,33 @@ public class DataStore {
                 line = line.trim();
                 if (line.isEmpty()) continue;
                 String[] p = line.split(SEP_REGEX, -1);
-                if (p.length < 7) continue;
-                String updatedTime = (p.length > 7 && !p[7].isEmpty()) ? p[7] : "09:00";
-                CleaningTask t = new CleaningTask(
-                        p[0], p[1], p[2],
-                        CleaningTask.TaskPriority.valueOf(p[3]),
-                        LocalDate.parse(p[5]),
-                        p[6],
-                        updatedTime);
-                t.setStatus(CleaningTask.TaskStatus.valueOf(p[4]));
-                t.setUpdatedTime(updatedTime);
+                if (p.length < 6) continue;
+
+                CleaningTask t;
+                if (p.length >= 8) {
+                    String updatedTime = (!p[7].isEmpty()) ? p[7] : "09:00";
+                    CleaningTask.TaskPriority priority = CleaningTask.TaskPriority.LOW;
+                    try { priority = CleaningTask.TaskPriority.valueOf(p[3]); } catch (Exception ignored) {}
+                    CleaningTask.TaskStatus status = CleaningTask.TaskStatus.PENDING;
+                    try { status = CleaningTask.TaskStatus.valueOf(p[4]); } catch (Exception ignored) {}
+                    LocalDate date = LocalDate.now();
+                    try { date = LocalDate.parse(p[5]); } catch (Exception ignored) {}
+
+                    t = new CleaningTask(p[0], p[1], p[2], priority, date, p[6], updatedTime);
+                    t.setStatus(status);
+                    t.setUpdatedTime(updatedTime);
+                } else {
+                    CleaningTask.TaskStatus status = CleaningTask.TaskStatus.PENDING;
+                    try { status = CleaningTask.TaskStatus.valueOf(p[3]); } catch (Exception ignored) {}
+                    LocalDate date = LocalDate.now();
+                    try { date = LocalDate.parse(p[4]); } catch (Exception ignored) {}
+                    String remarks = (p.length > 5) ? p[5] : "Checkout Cleaning";
+                    String updatedTime = (p.length > 6 && !p[6].isEmpty()) ? p[6] : "09:00";
+
+                    t = new CleaningTask(p[0], p[1], p[2], CleaningTask.TaskPriority.LOW, date, remarks, updatedTime);
+                    t.setStatus(status);
+                    t.setUpdatedTime(updatedTime);
+                }
                 list.push(t);
                 max = Math.max(max, parseTrailingNum(p[0]));
             }

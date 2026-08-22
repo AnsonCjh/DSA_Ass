@@ -389,8 +389,10 @@ public class FrontDeskBoundary {
         Room room = control.findRoom(res.getRoomNo());
         if (!control.isRoomReadyForCheckIn(room)) {
             System.out.println();
-            System.out.printf("  [!] Notice: Room %s is currently '%s'.%n", room.getRoomNo(), room.getStatus());
-            System.out.println("      Room is not ready for guest check-in.");
+            System.out.printf("  [!] Notice: Room %s is currently '%s'.%n",
+                    room != null ? room.getRoomNo() : res.getRoomNo(),
+                    room != null ? room.getStatus() : "UNKNOWN");
+            System.out.println("      Housekeeping not perform yet. Room is not READY_FOR_CHECK_IN.");
             System.out.print("      Force override and proceed with check-in? (Y/N): ");
             if (!sc.nextLine().trim().equalsIgnoreCase("Y")) {
                 System.out.println("  Check-in suspended. Please wait for Housekeeping.");
@@ -609,8 +611,8 @@ public class FrontDeskBoundary {
             System.out.println("  Showing all rooms (current status):");
         }
         System.out.println();
-        System.out.printf("  %-8s %-12s %-14s %-9s %-15s%n",
-                "Room No", "Type", "Price/Night", "Capacity", "Availability");
+        System.out.printf("  %-8s %-12s %-14s %-9s %-14s %-20s%n",
+                "Room No", "Type", "Price/Night", "Capacity", "Availability", "Room Status");
         printDivider();
 
         int countAvail = 0, countTotal = 0;
@@ -620,24 +622,23 @@ public class FrontDeskBoundary {
             countTotal++;
 
             if (r.getStatus() == Room.RoomStatus.UNDER_MAINTENANCE) {
-                System.out.printf("  %-8s %-12s RM%-12.2f %-9d %-15s%n",
+                System.out.printf("  %-8s %-12s RM%-12.2f %-9d %-14s %-20s%n",
                         r.getRoomNo(), r.getRoomType(), r.getPricePerNight(),
-                        r.getCapacity(), "MAINTENANCE");
+                        r.getCapacity(), "MAINTENANCE", "UNDER_MAINTENANCE");
                 continue;
             }
 
             boolean available = control.isRoomAvailable(r, checkIn, checkOut);
             if (available) countAvail++;
-            System.out.printf("  %-8s %-12s RM%-12.2f %-9d %-15s%n",
+            System.out.printf("  %-8s %-12s RM%-12.2f %-9d %-14s %-20s%n",
                     r.getRoomNo(), r.getRoomType(), r.getPricePerNight(),
-                    r.getCapacity(), available ? "AVAILABLE" : "UNAVAILABLE");
+                    r.getCapacity(), available ? "AVAILABLE" : "UNAVAILABLE", r.getStatus());
         }
         printDivider();
         System.out.printf("  Total: %d  |  Available: %d  |  Unavailable: %d%n",
                 countTotal, countAvail, countTotal - countAvail);
         System.out.println();
-        System.out.println("  Note: This is a read-only enquiry. Walk-in bookings are handled");
-        System.out.println("        in the Walk-In Registration Module.");
+        System.out.println("  Note: This is a read-only enquiry. Walk-in bookings are handled in the Walk-In Registration Module.");
         pressEnterToContinue();
     }
 

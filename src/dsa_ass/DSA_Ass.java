@@ -68,18 +68,11 @@ public class DSA_Ass {
         }
 
         // ── Step 3: Re-sync room status from active reservations ──
-        // Reset all rooms to AVAILABLE, then mark OCCUPIED for every
-        // CONFIRMED / CHECKED_IN reservation that still references a room.
-        for (int i = 0; i < roomList.size(); i++) {
-            Room r = roomList.get(i);
-            if (r.getStatus() != Room.RoomStatus.UNDER_MAINTENANCE) {
-                r.setStatus(Room.RoomStatus.AVAILABLE);
-            }
-        }
+        // Only mark OCCUPIED for reservations that are actively CHECKED_IN.
+        // Other rooms preserve their persisted housekeeping status (READY_FOR_CHECK_IN, DIRTY, etc.).
         for (int i = 0; i < reservationList.size(); i++) {
             Reservation res = reservationList.get(i);
-            if (res.getStatus() == Reservation.ReservationStatus.CONFIRMED
-                    || res.getStatus() == Reservation.ReservationStatus.CHECKED_IN) {
+            if (res.getStatus() == Reservation.ReservationStatus.CHECKED_IN) {
                 for (int j = 0; j < roomList.size(); j++) {
                     if (roomList.get(j).getRoomNo().equalsIgnoreCase(res.getRoomNo())) {
                         roomList.get(j).setStatus(Room.RoomStatus.OCCUPIED);

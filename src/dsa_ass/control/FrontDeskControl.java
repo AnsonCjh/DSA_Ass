@@ -176,10 +176,8 @@ public class FrontDeskControl {
     // ── Check-In Business Logic ──────────────────────────────────
 
     public boolean isRoomReadyForCheckIn(Room room) {
-        if (room == null) return true;
-        return room.getStatus() != Room.RoomStatus.DIRTY
-                && room.getStatus() != Room.RoomStatus.CLEANING_IN_PROGRESS
-                && room.getStatus() != Room.RoomStatus.UNDER_MAINTENANCE;
+        if (room == null) return false;
+        return room.getStatus() == Room.RoomStatus.READY_FOR_CHECK_IN;
     }
 
     public void processCheckIn(Reservation res, Room room, double depositAmount) {
@@ -234,7 +232,8 @@ public class FrontDeskControl {
 
     public boolean isRoomAvailable(Room r, LocalDate checkIn, LocalDate checkOut) {
         if (r.getStatus() == Room.RoomStatus.UNDER_MAINTENANCE) return false;
-        if (checkIn == null || checkOut == null) return r.isAvailable();
+        if (r.getStatus() == Room.RoomStatus.OCCUPIED && (checkIn == null || checkOut == null)) return false;
+        if (checkIn == null || checkOut == null) return true;
 
         for (int j = 0; j < reservationList.size(); j++) {
             Reservation res = reservationList.get(j);

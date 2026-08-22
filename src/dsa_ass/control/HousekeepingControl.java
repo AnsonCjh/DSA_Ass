@@ -102,6 +102,28 @@ public class HousekeepingControl {
         return null;
     }
 
+    public CleaningTask findActiveTaskByRoom(String roomNo) {
+        if (roomNo == null || roomNo.isEmpty()) return null;
+        for (int i = 0; i < taskList.size(); i++) {
+            CleaningTask t = taskList.get(i);
+            if (t.getRoomNo().equalsIgnoreCase(roomNo) && t.getStatus() != CleaningTask.TaskStatus.COMPLETED) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    public CleaningTask findLatestTaskForRoom(String roomNo) {
+        if (roomNo == null || roomNo.isEmpty()) return null;
+        for (int i = 0; i < taskList.size(); i++) {
+            CleaningTask t = taskList.get(i);
+            if (t.getRoomNo().equalsIgnoreCase(roomNo)) {
+                return t;
+            }
+        }
+        return null;
+    }
+
     public boolean deleteTask(String taskId) {
         for (int i = 0; i < taskList.size(); i++) {
             if (taskList.get(i).getTaskId().equalsIgnoreCase(taskId)) {
@@ -117,6 +139,28 @@ public class HousekeepingControl {
 
     public Queue<Room> getRoomList() {
         return roomList;
+    }
+
+    public Queue<Room> getDirtyRooms() {
+        Queue<Room> dirtyRooms = new Queue<Room>();
+        for (int i = 0; i < roomList.size(); i++) {
+            Room r = roomList.get(i);
+            if (r.getStatus() == Room.RoomStatus.DIRTY) {
+                dirtyRooms.enqueue(r);
+            }
+        }
+        return dirtyRooms;
+    }
+
+    public Queue<Room> getInspectedRooms() {
+        Queue<Room> inspected = new Queue<Room>();
+        for (int i = 0; i < roomList.size(); i++) {
+            Room r = roomList.get(i);
+            if (r.getStatus() == Room.RoomStatus.INSPECTED) {
+                inspected.enqueue(r);
+            }
+        }
+        return inspected;
     }
 
     public Room findRoom(String roomNo) {
